@@ -15,18 +15,9 @@ jobs:
       - name: Checkout Central Repository
         uses: actions/checkout@v4.2.2
 
-      - name: Setup Environment
-        uses: actions/setup-node@v4.1.0
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git
-
-          # Install yq
-          YQ_VERSION=v4.34.1
-          wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 -O /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
+      - name: Install yq
+        run: sudo apt-get update && sudo apt-get install -y yq
 
       - name: Verify yq Installation
         run: yq --version
@@ -41,7 +32,7 @@ jobs:
       - name: Read Target Repositories
         id: get_repos
         run: |
-          REPOS=$(yq '.repositories | map(.name + " " + .owner + " " + "./") | join(",")' repositories.yml)
+          REPOS=$(yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")' repositories.yml)
           echo "REPOS=${REPOS}" >> $GITHUB_OUTPUT
         env:
           REPOS_FILE: repositories.yml
@@ -71,26 +62,51 @@ jobs:
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
             # Clone the target repository using the GitHub App token
-            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git temp_repo || { echo "Failed to clone repository $REPO_OWNER/$REPO_NAME"; exit 1; }
+            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git temp_repo || { 
+              echo "Failed to clone repository $REPO_OWNER/$REPO_NAME"; 
+              exit 1; 
+            }
             cd temp_repo
 
-            # Copy updated resources to the root of the target repository
-            cp -R ../resources/* ./ || { echo "Failed to copy resources to $REPO_OWNER/$REPO_NAME"; exit 1; }
+            # Ensure we're on the main branch
+            git checkout main || { 
+              echo "Failed to checkout main branch in $REPO_OWNER/$REPO_NAME"; 
+              exit 1; 
+            }
 
-            # Check if there are changes to commit
-            if git diff --quiet; then
+            # Copy updated resources to the target repository
+            cp -R ../resources/* ./ || { 
+              echo "Failed to copy resources to $REPO_OWNER/$REPO_NAME"; 
+              exit 1; 
+            }
+
+            # Stage all changes, including new files
+            git add .
+
+            # Check if there are any changes to commit
+            if git diff --cached --quiet; then
               echo "No changes detected in $REPO_OWNER/$REPO_NAME. Skipping commit."
             else
-              # Commit and push changes
+              # Configure Git
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add .
-              git commit -m "chore: update shared resources from central repository" || { echo "Failed to commit changes in $REPO_OWNER/$REPO_NAME"; exit 1; }
-              git push origin main || { echo "Git push failed for repository $REPO_OWNER/$REPO_NAME"; exit 1; }
+
+              # Commit changes
+              git commit -m "chore: update shared resources from central repository" || { 
+                echo "Failed to commit changes in $REPO_OWNER/$REPO_NAME"; 
+                exit 1; 
+              }
+
+              # Push changes
+              git push origin main || { 
+                echo "Git push failed for repository $REPO_OWNER/$REPO_NAME"; 
+                exit 1; 
+              }
               echo "Successfully synced $REPO_OWNER/$REPO_NAME."
             fi
 
             cd ..
             rm -rf temp_repo
           done
+        shell: /usr/bin/bash -e {0}
 
