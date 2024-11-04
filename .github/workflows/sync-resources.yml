@@ -11,6 +11,12 @@ jobs:
   sync-resources:
     runs-on: ubuntu-latest
 
+    env:
+      GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+      GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+      DEFAULT_BRANCH: main
+      TEMP_REPO_DIR: temp_repo
+
     steps:
       - name: Checkout Central Repository
         uses: actions/checkout@v4.2.2
@@ -35,8 +41,8 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1.11.0
         with:
-          app-id: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-          private-key: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+          app-id: ${{ env.GITHUB_APP_ID }}
+          private-key: ${{ env.GITHUB_APP_PRIVATE_KEY }}
 
       - name: Read Target Repositories
         id: get_repos
@@ -55,6 +61,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
+          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
+          TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
           if [ -z "$REPOS" ]; then
             echo "No repositories found to sync."
@@ -71,15 +79,15 @@ jobs:
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
             # Clone the target repository using the GitHub App token
-            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git temp_repo || { 
+            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR || { 
               echo "Failed to clone repository $REPO_OWNER/$REPO_NAME"; 
               exit 1; 
             }
-            cd temp_repo
+            cd $TEMP_REPO_DIR
 
-            # Ensure we're on the main branch
-            git checkout main || { 
-              echo "Failed to checkout main branch in $REPO_OWNER/$REPO_NAME"; 
+            # Ensure we're on the default branch
+            git checkout $DEFAULT_BRANCH || { 
+              echo "Failed to checkout $DEFAULT_BRANCH branch in $REPO_OWNER/$REPO_NAME"; 
               exit 1; 
             }
 
@@ -106,16 +114,25 @@ jobs:
                 exit 1; 
               }
 
-              # Push changes
-              git push origin main || { 
-                echo "Git push failed for repository $REPO_OWNER/$REPO_NAME"; 
-                exit 1; 
-              }
+              # Push changes with retry logic
+              retry_count=0
+              max_retries=3
+              until git push origin $DEFAULT_BRANCH || [ $retry_count -ge $max_retries ]; do
+                retry_count=$((retry_count + 1))
+                echo "Retrying push... Attempt $retry_count"
+                sleep 5
+              done
+
+              if [ $retry_count -ge $max_retries ]; then
+                echo "Git push failed for repository $REPO_OWNER/$REPO_NAME after $max_retries attempts."
+                exit 1
+              fi
+
               echo "Successfully synced $REPO_OWNER/$REPO_NAME."
             fi
 
             cd ..
-            rm -rf temp_repo
+            rm -rf $TEMP_REPO_DIR
           done
         shell: /usr/bin/bash -e {0}
 
