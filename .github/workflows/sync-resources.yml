@@ -14,10 +14,19 @@ jobs:
     steps:
       - name: Checkout Central Repository
         uses: actions/checkout@v4.2.2
+        
+      - name: Setup Environment
+        uses: actions/setup-node@v4.1.0
 
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git
 
-      - name: Install yq
-        run: sudo apt-get update && sudo apt-get install -y yq
+          # Install yq
+          YQ_VERSION=v4.34.1
+          wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
 
       - name: Verify yq Installation
         run: yq --version
