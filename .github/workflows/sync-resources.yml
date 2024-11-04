@@ -12,17 +12,15 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write  # Ensure `write` access to contents for pushing changes
 
     env:
-      GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-      GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
       DEFAULT_BRANCH: main
       TEMP_REPO_DIR: temp_repo
 
     steps:
       - name: Checkout Central Repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4  # No need for versioning details unless specified
 
       - name: Setup Required Tools
         run: |
@@ -32,56 +30,6 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
         shell: bash
 
-      - name: Generate GitHub App Token
-        id: generate-token
-        run: |
-          echo "${GITHUB_APP_PRIVATE_KEY}" > private-key.pem
-      
-          # Generate JWT
-          JWT=$(echo -n "{\"iat\":$(date +%s),\"exp\":$(( $(date +%s) + 600 )),\"iss\":${GITHUB_APP_ID}}" | \
-                openssl dgst -sha256 -sign private-key.pem | \
-                openssl base64 -A | tr '+/' '-_' | tr -d '=')
-      
-          # Fetch Installation ID
-          INSTALLATIONS_RESPONSE=$(curl -s -H "Authorization: Bearer $JWT" \
-                                           -H "Accept: application/vnd.github.v3+json" \
-                                           https://api.github.com/app/installations)
-          echo "Installation response: $INSTALLATIONS_RESPONSE"
-      
-          INSTALLATION_ID=$(echo "$INSTALLATIONS_RESPONSE" | jq -r 'if type == "array" then .[0].id else .id end')
-      
-          if [ -z "$INSTALLATION_ID" ]; then
-              echo "Error: Could not retrieve installation ID."
-              exit 1
-          fi
-      
-          # Request Installation Token
-          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" \
-                                        -H "Accept: application/vnd.github.v3+json" \
-                                        https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
-      
-          if [ -z "$INSTALLATION_TOKEN" ]; then
-              echo "Error: Failed to retrieve the installation token."
-              exit 1
-          fi
-      
-          echo "token=${INSTALLATION_TOKEN}" >> $GITHUB_OUTPUT
-        shell: bash
-        env:
-          GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
-
-      - name: Verify Installation Token Permissions
-        run: |
-          echo "Verifying INSTALLATION_TOKEN..."
-          echo "Token: ${INSTALLATION_TOKEN}"
-          RESPONSE=$(curl -s -H "Authorization: Bearer ${INSTALLATION_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/user/repos)
-          echo "Response: $RESPONSE"
-        env:
-          INSTALLATION_TOKEN: ${{ steps.generate-token.outputs.token }}
-        shell: bash
-
-      
       - name: Parse Target Repositories
         id: get_repos
         run: |
@@ -92,7 +40,7 @@ jobs:
       - name: Sync to Target Repositories
         if: steps.get_repos.outputs.REPOS != ''
         env:
-          INSTALLATION_TOKEN: ${{ steps.generate-token.outputs.token }}  # Use INSTALLATION_TOKEN directly
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the automatically provided GitHub token
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
           TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
@@ -100,15 +48,15 @@ jobs:
           for repo in "${REPO_ARRAY[@]}"; do
             IFS=' ' read -r REPO_NAME REPO_OWNER RESOURCE_PATH <<< "$repo"
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
-      
-            # Use INSTALLATION_TOKEN for authentication
-            git clone https://x-access-token:${INSTALLATION_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
+
+            # Use GITHUB_TOKEN for authentication
+            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
             cd $TEMP_REPO_DIR
             git checkout $DEFAULT_BRANCH
-      
+
             cp -R ../resources/* ./
             git add .
-      
+
             if ! git diff --cached --quiet; then
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -117,9 +65,8 @@ jobs:
             else
               echo "No changes detected for $REPO_OWNER/$REPO_NAME. Skipping commit."
             fi
-      
+
             cd ..
             rm -rf $TEMP_REPO_DIR
           done
         shell: bash
-      
