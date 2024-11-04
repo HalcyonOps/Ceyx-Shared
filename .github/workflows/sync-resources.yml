@@ -105,6 +105,9 @@ jobs:
 
           echo "Installation token generated successfully."
         shell: /usr/bin/bash -e {0}
+        env:
+            GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+            GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
 
       - name: Verify Token Generation
         run: |
