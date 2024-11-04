@@ -11,6 +11,9 @@ jobs:
   sync-resources:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write # Grant write permissions to allow push operations
+
     env:
       GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
       GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
@@ -20,7 +23,7 @@ jobs:
     steps:
       - name: Checkout Central Repository
         uses: actions/checkout@v4.2.2
-        
+
       - name: Setup Environment
         uses: actions/setup-node@v4.1.0
 
