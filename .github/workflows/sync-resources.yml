@@ -24,7 +24,7 @@ jobs:
 
       - name: Generate GitHub App Token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v1.11.0
         with:
           app-id: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           private-key: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
