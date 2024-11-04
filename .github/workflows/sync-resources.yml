@@ -62,24 +62,34 @@ jobs:
                 tr '+/' '-_' | \
                 tr -d '=')
 
+          echo "Generated JWT."
+
           # Fetch installation ID (Assuming App is installed on the organization)
           INSTALLATIONS_RESPONSE=$(curl -s -H "Authorization: Bearer $JWT" \
                                          -H "Accept: application/vnd.github.v3+json" \
                                          https://api.github.com/app/installations)
 
-          # Check if INSTALLATIONS_RESPONSE is empty
-          if [ "$(echo "$INSTALLATIONS_RESPONSE" | jq length)" -eq 0 ]; then
+          echo "Fetched Installations Response:"
+          echo "$INSTALLATIONS_RESPONSE"
+
+          # Check if INSTALLATIONS_RESPONSE is an array and has at least one installation
+          INSTALLATION_COUNT=$(echo "$INSTALLATIONS_RESPONSE" | jq 'length')
+          if [ "$INSTALLATION_COUNT" -eq 0 ]; then
             echo "Error: No installations found for the GitHub App. Please ensure the App is installed on the organization or repository."
             exit 1
           fi
 
           # Extract the first installation ID
           INSTALLATION_ID=$(echo "$INSTALLATIONS_RESPONSE" | jq '.[0].id')
+          echo "Installation ID: $INSTALLATION_ID"
 
           # Request Installation Token
           INSTALLATION_TOKEN_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $JWT" \
                                                    -H "Accept: application/vnd.github.v3+json" \
                                                    https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens)
+
+          echo "Installation Token Response:"
+          echo "$INSTALLATION_TOKEN_RESPONSE"
 
           # Extract the token
           INSTALLATION_TOKEN=$(echo "$INSTALLATION_TOKEN_RESPONSE" | jq -r '.token')
@@ -93,10 +103,24 @@ jobs:
           # Output the token to be used in subsequent steps
           echo "token=${INSTALLATION_TOKEN}" >> $GITHUB_OUTPUT
 
+          echo "Installation token generated successfully."
+        shell: /usr/bin/bash -e {0}
+
       - name: Verify Token Generation
         run: |
-          echo "Token generated successfully."
-          curl -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app
+          echo "Verifying GitHub App token..."
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app)
+          echo "Response:"
+          echo "$RESPONSE"
+
+          # Check for successful response
+          MESSAGE=$(echo "$RESPONSE" | jq -r '.message // empty')
+          if [ "$MESSAGE" != "" ]; then
+            echo "Error: $MESSAGE"
+            exit 1
+          fi
+
+          echo "Token verification successful."
         shell: /usr/bin/bash -e {0}
 
       - name: Read Target Repositories
