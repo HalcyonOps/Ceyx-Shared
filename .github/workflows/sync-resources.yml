@@ -41,15 +41,26 @@ jobs:
       - name: Read Target Repositories
         id: get_repos
         run: |
-          echo "REPOS=$(yq '.repositories | map(.name + \" \" + .owner + \" \" + \"./\") | join(\",\")' repositories.yml)" >> $GITHUB_OUTPUT
+          REPOS=$(yq '.repositories | map(.name + " " + .owner + " " + "./") | join(",")' repositories.yml)
+          echo "REPOS=${REPOS}" >> $GITHUB_OUTPUT
         env:
           REPOS_FILE: repositories.yml
+
+      - name: Validate repositories.yml
+        run: |
+          yq e '.' repositories.yml > /dev/null
+        shell: bash
 
       - name: Sync to Target Repositories
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
         run: |
+          if [ -z "$REPOS" ]; then
+            echo "No repositories found to sync."
+            exit 0
+          fi
+
           IFS=',' read -ra REPO_ARRAY <<< "$REPOS"
           for repo in "${REPO_ARRAY[@]}"; do
             IFS=' ' read -ra INFO <<< "$repo"
@@ -64,15 +75,22 @@ jobs:
             cd temp_repo
 
             # Copy updated resources to the root of the target repository
-            cp -R ../resources/* ./
+            cp -R ../resources/* ./ || { echo "Failed to copy resources to $REPO_OWNER/$REPO_NAME"; exit 1; }
 
-            # Commit and push changes
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .
-            git commit -m "chore: update shared resources from central repository" || echo "No changes to commit"
-            git push origin main || { echo "Git push failed for repository $REPO_OWNER/$REPO_NAME"; exit 1; }
+            # Check if there are changes to commit
+            if git diff --quiet; then
+              echo "No changes detected in $REPO_OWNER/$REPO_NAME. Skipping commit."
+            else
+              # Commit and push changes
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add .
+              git commit -m "chore: update shared resources from central repository" || { echo "Failed to commit changes in $REPO_OWNER/$REPO_NAME"; exit 1; }
+              git push origin main || { echo "Git push failed for repository $REPO_OWNER/$REPO_NAME"; exit 1; }
+              echo "Successfully synced $REPO_OWNER/$REPO_NAME."
+            fi
 
             cd ..
             rm -rf temp_repo
           done
+
