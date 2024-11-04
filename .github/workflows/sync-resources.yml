@@ -30,7 +30,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git
+          sudo apt-get install -y git jq openssl
 
           # Install yq
           YQ_VERSION=v4.34.1
@@ -40,12 +40,35 @@ jobs:
       - name: Verify yq Installation
         run: yq --version
 
-      - name: Generate GitHub App Token
+      - name: Generate GitHub App Token Manually
         id: generate-token
-        uses: actions/create-github-app-token@v1.11.0
-        with:
-          app-id: ${{ env.GITHUB_APP_ID }}
-          private-key: ${{ env.GITHUB_APP_PRIVATE_KEY }}
+        run: |
+          #!/bin/bash
+          set -e
+
+          # Define variables
+          APP_ID=${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+          PRIVATE_KEY="${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}"
+
+          # Current time
+          NOW=$(date +%s)
+
+          # Generate JWT
+          JWT=$(echo -n "{\"iat\":$NOW,\"exp\":$((NOW + 600)),\"iss\":$APP_ID}" | openssl dgst -sha256 -sign <(echo "$PRIVATE_KEY") | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+
+          # Fetch installation ID (Assuming App is installed on the organization)
+          INSTALLATION_ID=$(curl -s -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" https://api.github.com/app/installations | jq '.[0].id')
+
+          # Request Installation Token
+          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
+
+          echo "token=$INSTALLATION_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Verify Token Generation
+        run: |
+          echo "Token generated successfully."
+          curl -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app
+        shell: /usr/bin/bash -e {0}
 
       - name: Read Target Repositories
         id: get_repos
@@ -60,11 +83,6 @@ jobs:
           yq e '.' repositories.yml > /dev/null
         shell: bash
 
-      - name: Verify Token Generation
-        run: |
-          echo "Verifying GitHub App token..."
-          curl -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app
-
       - name: Sync to Target Repositories
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -72,6 +90,7 @@ jobs:
           DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
           TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
+          echo "Starting sync to target repositories."
           if [ -z "$REPOS" ]; then
             echo "No repositories found to sync."
             exit 0
@@ -93,17 +112,28 @@ jobs:
             }
             cd $TEMP_REPO_DIR
 
+            # Verify Git Remote
+            git remote -v
+
             # Ensure we're on the default branch
             git checkout $DEFAULT_BRANCH || { 
               echo "Failed to checkout $DEFAULT_BRANCH branch in $REPO_OWNER/$REPO_NAME"; 
               exit 1; 
             }
 
+            # List current files
+            echo "Files before copying:"
+            ls -la
+
             # Copy updated resources to the target repository
             cp -R ../resources/* ./ || { 
               echo "Failed to copy resources to $REPO_OWNER/$REPO_NAME"; 
               exit 1; 
             }
+
+            # List files after copying
+            echo "Files after copying:"
+            ls -la
 
             # Stage all changes, including new files
             git add .
@@ -143,4 +173,3 @@ jobs:
             rm -rf $TEMP_REPO_DIR
           done
         shell: /usr/bin/bash -e {0}
-
