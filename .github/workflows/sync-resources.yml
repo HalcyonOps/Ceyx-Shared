@@ -21,7 +21,15 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git yq
+          sudo apt-get install -y git
+
+          # Install yq
+          YQ_VERSION=v4.34.1
+          wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Verify yq Installation
+        run: yq --version
 
       - name: Generate GitHub App Token
         id: generate-token
@@ -33,7 +41,7 @@ jobs:
       - name: Read Target Repositories
         id: get_repos
         run: |
-          echo "::set-output name=REPOS::$(yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")' repositories.yml)"
+          echo "::set-output name=REPOS::$(yq '.repositories | map(.name + " " + .owner + " " + "./") | join(",")' repositories.yml)"
         env:
           REPOS_FILE: repositories.yml
 
@@ -48,7 +56,7 @@ jobs:
             REPO_NAME=${INFO[0]}
             REPO_OWNER=${INFO[1]}
             RESOURCE_PATH=${INFO[2]}
-  
+
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
             # Clone the target repository using the GitHub App token
