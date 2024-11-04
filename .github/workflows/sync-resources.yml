@@ -1,0 +1,69 @@
+name: Sync Shared Resources
+
+on:
+  push:
+    paths:
+      - 'resources/**'
+      - 'repositories.yml'
+
+jobs:
+  sync-resources:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Central Repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Environment
+        uses: actions/setup-node@v4.1.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git
+
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+          private-key: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+
+      - name: Read Target Repositories
+        id: get_repos
+        run: |
+          echo "::set-output name=REPOS::$(cat repositories.yml | yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")')"
+        env:
+          REPOS_FILE: repositories.yml
+
+      - name: Sync to Target Repositories
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          REPOS: ${{ steps.get_repos.outputs.REPOS }}
+        run: |
+          IFS=',' read -ra REPO_ARRAY <<< "$REPOS"
+          for repo in "${REPO_ARRAY[@]}"; do
+            IFS=' ' read -ra INFO <<< "$repo"
+            REPO_NAME=${INFO[0]}
+            REPO_OWNER=${INFO[1]}
+            RESOURCE_PATH=${INFO[2]}
+
+            echo "Syncing to $REPO_OWNER/$REPO_NAME"
+
+            # Clone the target repository using the GitHub App token
+            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git temp_repo
+            cd temp_repo
+
+            # Copy updated resources
+            cp -R ../resources/* ${RESOURCE_PATH}/
+
+            # Commit and push changes
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add ${RESOURCE_PATH}/
+            git commit -m "chore: update shared resources from central repository" || echo "No changes to commit"
+            git push origin main
+
+            cd ..
+            rm -rf temp_repo
+          done

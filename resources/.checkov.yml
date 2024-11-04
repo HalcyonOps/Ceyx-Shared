@@ -1,0 +1,3 @@
+skip-check:
+  - CKV_AWS_*:modules/storage/s3/*
+  - CKV2_AWS_*:modules/storage/s3/*

@@ -1,0 +1,7 @@
+repositories:
+  - name: Ceyx-AWS-EC2
+    owner: HalcyonOps
+    path: resources
+  - name: Ceyx-AWS-VPC
+    owner: HalcyonOps
+    path: resources
