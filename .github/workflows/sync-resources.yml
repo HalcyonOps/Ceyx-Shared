@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # Grant write permissions to allow push operations
+      contents: write
 
     env:
       GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
@@ -24,208 +24,64 @@ jobs:
       - name: Checkout Central Repository
         uses: actions/checkout@v4.2.2
 
-      - name: Setup Environment
-        uses: actions/setup-node@v4.1.0
-
-      - name: Install Dependencies
+      - name: Setup Required Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y git jq openssl
-
-          # Install yq
-          YQ_VERSION=v4.34.1
-          wget https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 -O /usr/local/bin/yq
+          wget https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_amd64 -O /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
+        shell: bash
 
-      - name: Verify yq Installation
-        run: yq --version
-
-      - name: Generate GitHub App Token Manually
+      - name: Generate GitHub App Token
         id: generate-token
         run: |
-          #!/bin/bash
-          set -e
-
-          # Write the private key to a temporary file to preserve formatting
           echo "${GITHUB_APP_PRIVATE_KEY}" > private-key.pem
-
-          # Define variables
-          APP_ID=${GITHUB_APP_ID}
-
-          # Current time
-          NOW=$(date +%s)
-
-          # Generate JWT
-          JWT=$(echo -n "{\"iat\":$NOW,\"exp\":$((NOW + 600)),\"iss\":$APP_ID}" | \
+          JWT=$(echo -n "{\"iat\":$(date +%s),\"exp\":$(( $(date +%s) + 600 )),\"iss\":${GITHUB_APP_ID}}" | \
                 openssl dgst -sha256 -sign private-key.pem | \
-                openssl base64 -A | \
-                tr '+/' '-_' | \
-                tr -d '=')
-
-          echo "Generated JWT."
-
-          # Fetch installation ID (Assuming App is installed on the organization)
-          INSTALLATIONS_RESPONSE=$(curl -s -H "Authorization: Bearer $JWT" \
-                                         -H "Accept: application/vnd.github.v3+json" \
-                                         https://api.github.com/app/installations)
-
-          echo "Fetched Installations Response:"
-          echo "$INSTALLATIONS_RESPONSE"
-
-          # Check if INSTALLATIONS_RESPONSE is an array and has at least one installation
-          INSTALLATION_COUNT=$(echo "$INSTALLATIONS_RESPONSE" | jq 'length')
-          if [ "$INSTALLATION_COUNT" -eq 0 ]; then
-            echo "Error: No installations found for the GitHub App. Please ensure the App is installed on the organization or repository."
-            exit 1
-          fi
-
-          # Extract the first installation ID
-          INSTALLATION_ID=$(echo "$INSTALLATIONS_RESPONSE" | jq '.[0].id')
-          echo "Installation ID: $INSTALLATION_ID"
-
-          # Request Installation Token
-          INSTALLATION_TOKEN_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $JWT" \
-                                                   -H "Accept: application/vnd.github.v3+json" \
-                                                   https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens)
-
-          echo "Installation Token Response:"
-          echo "$INSTALLATION_TOKEN_RESPONSE"
-
-          # Extract the token
-          INSTALLATION_TOKEN=$(echo "$INSTALLATION_TOKEN_RESPONSE" | jq -r '.token')
-
-          # Check if the token was successfully retrieved
-          if [ "$INSTALLATION_TOKEN" == "null" ] || [ -z "$INSTALLATION_TOKEN" ]; then
-            echo "Error: Failed to retrieve the installation token."
-            exit 1
-          fi
-
-          # Output the token to be used in subsequent steps
+                openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          INSTALLATION_ID=$(curl -s -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" \
+                           https://api.github.com/app/installations | jq '.[0].id')
+          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" \
+                              https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
           echo "token=${INSTALLATION_TOKEN}" >> $GITHUB_OUTPUT
+        shell: bash
 
-          echo "Installation token generated successfully."
-        shell: /usr/bin/bash -e {0}
-        env:
-            GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-            GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
-
-      - name: Verify Token Generation
-        run: |
-          echo "Verifying GitHub App token..."
-          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app)
-          echo "Response:"
-          echo "$RESPONSE"
-
-          # Check for successful response
-          MESSAGE=$(echo "$RESPONSE" | jq -r '.message // empty')
-          if [ "$MESSAGE" != "" ]; then
-            echo "Error: $MESSAGE"
-            exit 1
-          fi
-
-          echo "Token verification successful."
-        shell: /usr/bin/bash -e {0}
-
-      - name: Read Target Repositories
+      - name: Parse Target Repositories
         id: get_repos
         run: |
           REPOS=$(yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")' repositories.yml)
           echo "REPOS=${REPOS}" >> $GITHUB_OUTPUT
-        env:
-          REPOS_FILE: repositories.yml
-
-      - name: Validate repositories.yml
-        run: |
-          yq e '.' repositories.yml > /dev/null
         shell: bash
 
       - name: Sync to Target Repositories
+        if: steps.get_repos.outputs.REPOS != ''
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
-          DEFAULT_BRANCH: ${{ env.DEFAULT_BRANCH }}
           TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
-          echo "Starting sync to target repositories."
-          if [ -z "$REPOS" ]; then
-            echo "No repositories found to sync."
-            exit 0
-          fi
-
           IFS=',' read -ra REPO_ARRAY <<< "$REPOS"
           for repo in "${REPO_ARRAY[@]}"; do
-            IFS=' ' read -ra INFO <<< "$repo"
-            REPO_NAME=${INFO[0]}
-            REPO_OWNER=${INFO[1]}
-            RESOURCE_PATH=${INFO[2]}
-
+            IFS=' ' read -r REPO_NAME REPO_OWNER RESOURCE_PATH <<< "$repo"
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
-            # Clone the target repository using the GitHub App token
-            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR || { 
-              echo "Failed to clone repository $REPO_OWNER/$REPO_NAME"; 
-              exit 1; 
-            }
+            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
             cd $TEMP_REPO_DIR
+            git checkout $DEFAULT_BRANCH
 
-            # Verify Git Remote
-            git remote -v
-
-            # Ensure we're on the default branch
-            git checkout $DEFAULT_BRANCH || { 
-              echo "Failed to checkout $DEFAULT_BRANCH branch in $REPO_OWNER/$REPO_NAME"; 
-              exit 1; 
-            }
-
-            # List current files
-            echo "Files before copying:"
-            ls -la
-
-            # Copy updated resources to the target repository
-            cp -R ../resources/* ./ || { 
-              echo "Failed to copy resources to $REPO_OWNER/$REPO_NAME"; 
-              exit 1; 
-            }
-
-            # List files after copying
-            echo "Files after copying:"
-            ls -la
-
-            # Stage all changes, including new files
+            cp -R ../resources/* ./
             git add .
 
-            # Check if there are any changes to commit
-            if git diff --cached --quiet; then
-              echo "No changes detected in $REPO_OWNER/$REPO_NAME. Skipping commit."
-            else
-              # Configure Git
+            if ! git diff --cached --quiet; then
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-
-              # Commit changes
-              git commit -m "chore: update shared resources from central repository" || { 
-                echo "Failed to commit changes in $REPO_OWNER/$REPO_NAME"; 
-                exit 1; 
-              }
-
-              # Push changes with retry logic
-              retry_count=0
-              max_retries=3
-              until git push origin $DEFAULT_BRANCH || [ $retry_count -ge $max_retries ]; do
-                retry_count=$((retry_count + 1))
-                echo "Retrying push... Attempt $retry_count"
-                sleep 5
-              done
-
-              if [ $retry_count -ge $max_retries ]; then
-                echo "Git push failed for repository $REPO_OWNER/$REPO_NAME after $max_retries attempts."
-                exit 1
-              fi
-
-              echo "Successfully synced $REPO_OWNER/$REPO_NAME."
+              git commit -m "chore: update shared resources from central repository"
+              git push origin $DEFAULT_BRANCH || exit 1
+            else
+              echo "No changes detected for $REPO_OWNER/$REPO_NAME. Skipping commit."
             fi
 
             cd ..
             rm -rf $TEMP_REPO_DIR
           done
-        shell: /usr/bin/bash -e {0}
+        shell: bash
