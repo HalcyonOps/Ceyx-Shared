@@ -71,7 +71,6 @@ jobs:
           GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
       
-
       - name: Parse Target Repositories
         id: get_repos
         run: |
@@ -82,7 +81,7 @@ jobs:
       - name: Sync to Target Repositories
         if: steps.get_repos.outputs.REPOS != ''
         env:
-          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}  # Ensure the token is set here
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
           TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
@@ -91,6 +90,7 @@ jobs:
             IFS=' ' read -r REPO_NAME REPO_OWNER RESOURCE_PATH <<< "$repo"
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
+            # Use the token for authentication in the clone URL
             git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
             cd $TEMP_REPO_DIR
             git checkout $DEFAULT_BRANCH
