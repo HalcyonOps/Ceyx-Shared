@@ -70,6 +70,17 @@ jobs:
         env:
           GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+
+      - name: Verify Installation Token Permissions
+        run: |
+          echo "Verifying INSTALLATION_TOKEN..."
+          echo "Token: ${INSTALLATION_TOKEN}"
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${INSTALLATION_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/user/repos)
+          echo "Response: $RESPONSE"
+        env:
+          INSTALLATION_TOKEN: ${{ steps.generate-token.outputs.token }}
+        shell: bash
+
       
       - name: Parse Target Repositories
         id: get_repos
@@ -81,7 +92,7 @@ jobs:
       - name: Sync to Target Repositories
         if: steps.get_repos.outputs.REPOS != ''
         env:
-          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}  # Ensure the token is set here
+          INSTALLATION_TOKEN: ${{ steps.generate-token.outputs.token }}  # Use INSTALLATION_TOKEN directly
           REPOS: ${{ steps.get_repos.outputs.REPOS }}
           TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
         run: |
@@ -89,15 +100,15 @@ jobs:
           for repo in "${REPO_ARRAY[@]}"; do
             IFS=' ' read -r REPO_NAME REPO_OWNER RESOURCE_PATH <<< "$repo"
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
-
-            # Use the token for authentication in the clone URL
-            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
+      
+            # Use INSTALLATION_TOKEN for authentication
+            git clone https://x-access-token:${INSTALLATION_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
             cd $TEMP_REPO_DIR
             git checkout $DEFAULT_BRANCH
-
+      
             cp -R ../resources/* ./
             git add .
-
+      
             if ! git diff --cached --quiet; then
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -106,8 +117,9 @@ jobs:
             else
               echo "No changes detected for $REPO_OWNER/$REPO_NAME. Skipping commit."
             fi
-
+      
             cd ..
             rm -rf $TEMP_REPO_DIR
           done
         shell: bash
+      
