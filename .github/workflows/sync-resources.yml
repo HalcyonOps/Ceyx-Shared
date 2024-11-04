@@ -60,6 +60,11 @@ jobs:
           yq e '.' repositories.yml > /dev/null
         shell: bash
 
+      - name: Verify Token Generation
+        run: |
+          echo "Verifying GitHub App token..."
+          curl -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" https://api.github.com/app
+
       - name: Sync to Target Repositories
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
