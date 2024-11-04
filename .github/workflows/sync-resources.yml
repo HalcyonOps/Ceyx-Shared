@@ -5,6 +5,7 @@ on:
     paths:
       - 'resources/**'
       - 'repositories.yml'
+  workflow_dispatch:
 
 jobs:
   sync-resources:
@@ -20,7 +21,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git
+          sudo apt-get install -y git yq
 
       - name: Generate GitHub App Token
         id: generate-token
@@ -32,7 +33,7 @@ jobs:
       - name: Read Target Repositories
         id: get_repos
         run: |
-          echo "::set-output name=REPOS::$(cat repositories.yml | yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")')"
+          echo "::set-output name=REPOS::$(yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")' repositories.yml)"
         env:
           REPOS_FILE: repositories.yml
 
@@ -47,20 +48,20 @@ jobs:
             REPO_NAME=${INFO[0]}
             REPO_OWNER=${INFO[1]}
             RESOURCE_PATH=${INFO[2]}
-
+  
             echo "Syncing to $REPO_OWNER/$REPO_NAME"
 
             # Clone the target repository using the GitHub App token
             git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git temp_repo
             cd temp_repo
 
-            # Copy updated resources
-            cp -R ../resources/* ${RESOURCE_PATH}/
+            # Copy updated resources to the root of the target repository
+            cp -R ../resources/* ./
 
             # Commit and push changes
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add ${RESOURCE_PATH}/
+            git add .
             git commit -m "chore: update shared resources from central repository" || echo "No changes to commit"
             git push origin main
 
