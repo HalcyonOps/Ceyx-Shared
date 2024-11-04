@@ -36,15 +36,41 @@ jobs:
         id: generate-token
         run: |
           echo "${GITHUB_APP_PRIVATE_KEY}" > private-key.pem
+      
+          # Generate JWT
           JWT=$(echo -n "{\"iat\":$(date +%s),\"exp\":$(( $(date +%s) + 600 )),\"iss\":${GITHUB_APP_ID}}" | \
                 openssl dgst -sha256 -sign private-key.pem | \
                 openssl base64 -A | tr '+/' '-_' | tr -d '=')
-          INSTALLATION_ID=$(curl -s -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" \
-                           https://api.github.com/app/installations | jq '.[0].id')
-          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" \
-                              https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
+      
+          # Fetch Installation ID
+          INSTALLATIONS_RESPONSE=$(curl -s -H "Authorization: Bearer $JWT" \
+                                           -H "Accept: application/vnd.github.v3+json" \
+                                           https://api.github.com/app/installations)
+          echo "Installation response: $INSTALLATIONS_RESPONSE"
+      
+          INSTALLATION_ID=$(echo "$INSTALLATIONS_RESPONSE" | jq -r 'if type == "array" then .[0].id else .id end')
+      
+          if [ -z "$INSTALLATION_ID" ]; then
+              echo "Error: Could not retrieve installation ID."
+              exit 1
+          fi
+      
+          # Request Installation Token
+          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" \
+                                        -H "Accept: application/vnd.github.v3+json" \
+                                        https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
+      
+          if [ -z "$INSTALLATION_TOKEN" ]; then
+              echo "Error: Failed to retrieve the installation token."
+              exit 1
+          fi
+      
           echo "token=${INSTALLATION_TOKEN}" >> $GITHUB_OUTPUT
         shell: bash
+        env:
+          GITHUB_APP_ID: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+      
 
       - name: Parse Target Repositories
         id: get_repos
