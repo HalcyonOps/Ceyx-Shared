@@ -46,23 +46,52 @@ jobs:
           #!/bin/bash
           set -e
 
+          # Write the private key to a temporary file to preserve formatting
+          echo "${GITHUB_APP_PRIVATE_KEY}" > private-key.pem
+
           # Define variables
-          APP_ID=${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-          PRIVATE_KEY="${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}"
+          APP_ID=${GITHUB_APP_ID}
 
           # Current time
           NOW=$(date +%s)
 
           # Generate JWT
-          JWT=$(echo -n "{\"iat\":$NOW,\"exp\":$((NOW + 600)),\"iss\":$APP_ID}" | openssl dgst -sha256 -sign <(echo "$PRIVATE_KEY") | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          JWT=$(echo -n "{\"iat\":$NOW,\"exp\":$((NOW + 600)),\"iss\":$APP_ID}" | \
+                openssl dgst -sha256 -sign private-key.pem | \
+                openssl base64 -A | \
+                tr '+/' '-_' | \
+                tr -d '=')
 
           # Fetch installation ID (Assuming App is installed on the organization)
-          INSTALLATION_ID=$(curl -s -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" https://api.github.com/app/installations | jq '.[0].id')
+          INSTALLATIONS_RESPONSE=$(curl -s -H "Authorization: Bearer $JWT" \
+                                         -H "Accept: application/vnd.github.v3+json" \
+                                         https://api.github.com/app/installations)
+
+          # Check if INSTALLATIONS_RESPONSE is empty
+          if [ "$(echo "$INSTALLATIONS_RESPONSE" | jq length)" -eq 0 ]; then
+            echo "Error: No installations found for the GitHub App. Please ensure the App is installed on the organization or repository."
+            exit 1
+          fi
+
+          # Extract the first installation ID
+          INSTALLATION_ID=$(echo "$INSTALLATIONS_RESPONSE" | jq '.[0].id')
 
           # Request Installation Token
-          INSTALLATION_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $JWT" -H "Accept: application/vnd.github.v3+json" https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens | jq -r '.token')
+          INSTALLATION_TOKEN_RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $JWT" \
+                                                   -H "Accept: application/vnd.github.v3+json" \
+                                                   https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens)
 
-          echo "token=$INSTALLATION_TOKEN" >> $GITHUB_OUTPUT
+          # Extract the token
+          INSTALLATION_TOKEN=$(echo "$INSTALLATION_TOKEN_RESPONSE" | jq -r '.token')
+
+          # Check if the token was successfully retrieved
+          if [ "$INSTALLATION_TOKEN" == "null" ] || [ -z "$INSTALLATION_TOKEN" ]; then
+            echo "Error: Failed to retrieve the installation token."
+            exit 1
+          fi
+
+          # Output the token to be used in subsequent steps
+          echo "token=${INSTALLATION_TOKEN}" >> $GITHUB_OUTPUT
 
       - name: Verify Token Generation
         run: |
