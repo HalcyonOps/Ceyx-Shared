@@ -64,6 +64,62 @@ jobs:
           
           echo "INSTALLATION_TOKEN=$installation_token" >> $GITHUB_ENV
 
+      - name: Validate Installation Token
+        env:
+          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
+        run: |
+          echo "Validating token permissions..."
+          response=$(curl -sS -I \
+            -H "Authorization: Bearer ${{ env.INSTALLATION_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com)
+          
+          # Check HTTP status code
+          if ! echo "$response" | grep -q "HTTP/2 200"; then
+            echo "Error: Token validation failed"
+            echo "$response"
+            exit 1
+          }
+          
+          # Check token scopes
+          scopes=$(echo "$response" | grep -i "x-oauth-scopes" || echo "none")
+          echo "Token scopes: $scopes"
+          
+          # Verify required scopes for repository operations
+          if ! echo "$scopes" | grep -q "repo"; then
+            echo "Error: Token missing required 'repo' scope"
+            exit 1
+          fi
+
+      - name: Validate Repository Access
+        env:
+          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
+          TARGET_REPOS: |
+            https://github.com/HalcyonOps/Ceyx-AWS-EC2.git
+            https://github.com/HalcyonOps/Ceyx-AWS-VPC.git
+        run: |
+          for repo in $(echo "${{ env.TARGET_REPOS }}" | tr '\n' ' '); do
+            repo_name=$(echo $repo | sed 's/.*github.com\/\([^.]*\).*/\1/')
+            echo "Checking access to $repo_name..."
+            
+            response=$(curl -sS -f \
+              -H "Authorization: Bearer ${{ env.INSTALLATION_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$repo_name")
+            
+            if [ $? -ne 0 ]; then
+              echo "Error: No access to repository $repo_name"
+              exit 1
+            fi
+            
+            # Check if we have write access
+            push_access=$(echo "$response" | jq -r .permissions.push)
+            if [ "$push_access" != "true" ]; then
+              echo "Error: No write access to repository $repo_name"
+              exit 1
+            fi
+          done
+
       - name: Sync files to target repositories
         uses: actions/github-script@v7
         env:
