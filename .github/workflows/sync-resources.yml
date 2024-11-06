@@ -1,4 +1,4 @@
-name: Sync Shared Resources
+name: Copy Changed Resources to Target Repositories
 
 on:
   push:
@@ -6,67 +6,133 @@ on:
       - 'resources/**'
       - 'repositories.yml'
   workflow_dispatch:
-
 jobs:
-  sync-resources:
+  copy-resources:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write  # Ensure `write` access to contents for pushing changes
-
-    env:
-      DEFAULT_BRANCH: main
-      TEMP_REPO_DIR: temp_repo
-
     steps:
-      - name: Checkout Central Repository
-        uses: actions/checkout@v4  # No need for versioning details unless specified
+      # Step 1: Checkout the source repository
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0  # Ensure full history is fetched for diff
 
-      - name: Setup Required Tools
+      # Step 2: Set Up Node.js Environment (required for generating JWT)
+      - name: Set Up Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '20'  # Ensure compatibility
+
+      # Step 3: Install Dependencies (GitHub App authentication)
+      - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git jq openssl
-          wget https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_amd64 -O /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-        shell: bash
+          npm install -g jwt-cli
 
-      - name: Parse Target Repositories
-        id: get_repos
+      # Step 4: Generate a GitHub App JWT
+      - name: Generate GitHub App JWT
+        id: generate_jwt
         run: |
-          REPOS=$(yq '.repositories | map(.name + " " + .owner + " " + .path) | join(",")' repositories.yml)
-          echo "REPOS=${REPOS}" >> $GITHUB_OUTPUT
-        shell: bash
+          echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
+          JWT=$(jwt encode --alg RS256 --iss ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
+          echo "::set-output name=jwt::$JWT"
 
-      - name: Sync to Target Repositories
-        if: steps.get_repos.outputs.REPOS != ''
+      # Step 5: Get Installation Access Token
+      - name: Get Installation Access Token
+        id: get_install_token
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.jwt }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/app/installations/${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
+          echo "::set-output name=token::$(echo $RESPONSE | jq -r .token)"
+
+      # Step 6: Identify Changed Files in /resources
+      - name: Get Changed Files in /resources
+        id: changed_files
+        run: |
+          echo "::set-output name=files::$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- resources/)"
+
+      # Step 7: Copy Files to Target Repositories
+      - name: Copy Files to Targets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the automatically provided GitHub token
-          REPOS: ${{ steps.get_repos.outputs.REPOS }}
-          TEMP_REPO_DIR: ${{ env.TEMP_REPO_DIR }}
+          TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
+          INSTALL_TOKEN: ${{ steps.get_install_token.outputs.token }}
         run: |
-          IFS=',' read -ra REPO_ARRAY <<< "$REPOS"
-          for repo in "${REPO_ARRAY[@]}"; do
-            IFS=' ' read -r REPO_NAME REPO_OWNER RESOURCE_PATH <<< "$repo"
-            echo "Syncing to $REPO_OWNER/$REPO_NAME"
+          # Convert TARGET_REPOS string into an array
+          IFS=$'\n' read -rd '' -a repos <<< "$TARGET_REPOS"
 
-            # Use GITHUB_TOKEN for authentication
-            git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git $TEMP_REPO_DIR
-            cd $TEMP_REPO_DIR
-            git checkout $DEFAULT_BRANCH
+          # Convert changed files string into an array
+          IFS=$'\n' read -rd '' -a files <<< "${{ steps.changed_files.outputs.files }}"
 
-            cp -R ../resources/* ./
-            git add .
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No changes detected in /resources. Exiting."
+            exit 0
+          fi
 
-            if ! git diff --cached --quiet; then
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git commit -m "chore: update shared resources from central repository"
-              git push origin $DEFAULT_BRANCH || exit 1
+          for repo in "${repos[@]}"; do
+            echo "Processing repository: $repo"
+
+            # Determine if the repo URL is SSH or HTTPS
+            if [[ "$repo" == git@* ]]; then
+              git_url="$repo"
             else
-              echo "No changes detected for $REPO_OWNER/$REPO_NAME. Skipping commit."
+              # For HTTPS, embed the token for authentication
+              git_url="${repo/https:\/\/github.com\//https://${INSTALL_TOKEN}@github.com/}"
             fi
 
-            cd ..
-            rm -rf $TEMP_REPO_DIR
+            # Extract repository name
+            repo_name=$(basename -s .git "$repo")
+
+            # Create a temporary directory for the target repo
+            temp_dir=$(mktemp -d)
+
+            # Clone the target repository using the Installation Token
+            git clone "$git_url" "$temp_dir/$repo_name"
+
+            # Navigate to the cloned repository
+            cd "$temp_dir/$repo_name"
+
+            # Configure Git user
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Initialize a variable to track if there are changes
+            changes_made=false
+
+            # Loop through each changed file
+            for file in "${files[@]}"; do
+              # Define source and target paths
+              src_file="../$file"                     # e.g., ../resources/path/to/file
+              relative_path="${file#resources/}"       # e.g., path/to/file
+              target_file="$relative_path"             # e.g., path/to/file
+
+              # Ensure the target directory exists
+              mkdir -p "$(dirname "$target_file")"
+
+              # Copy the file
+              cp "$src_file" "$target_file"
+
+              # Stage the file
+              git add "$target_file"
+
+              # Mark that changes have been made
+              changes_made=true
+            done
+
+            # Commit and push if there are changes
+            if [ "$changes_made" = true ]; then
+              # Commit the changes
+              git commit -m "Update resources from source repository"
+
+              # Push to the target repository
+              git push origin main  # Replace 'main' with the default branch if different
+
+              echo "Changes pushed to $repo successfully."
+            else
+              echo "No changes to commit for $repo."
+            fi
+
+            # Clean up the temporary directory
+            cd -
+            rm -rf "$temp_dir"
           done
-        shell: bash
