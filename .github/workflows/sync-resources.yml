@@ -38,7 +38,7 @@ jobs:
         id: generate_jwt
         run: |
           echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
-          JWT=$(jwt encode --alg RS256 --iss ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
+          JWT=$(jwt encode --alg RS256 --iss ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
           echo "jwt=$JWT" >> $GITHUB_OUTPUT
 
       # Step 5: Get Installation Access Token
@@ -48,7 +48,7 @@ jobs:
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.jwt }}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/app/installations/${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
+            https://api.github.com/app/installations/${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
           TOKEN=$(echo $RESPONSE | jq -r .token)
           if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
             echo "Failed to obtain installation access token."
@@ -67,7 +67,7 @@ jobs:
       # Step 7: Copy Files to Target Repositories
       - name: Copy Files to Targets
         env:
-          TARGET_REPOS: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
+          TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
           INSTALL_TOKEN: ${{ steps.get_install_token.outputs.token }}
           FILES: ${{ steps.changed_files.outputs.files }}
         run: |
