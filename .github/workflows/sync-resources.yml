@@ -33,12 +33,12 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # Step 4: Generate GitHub App JWT
-      - name: Generate GitHub App JWT
+      # Step 4: Decode Private Key and Generate JWT
+      - name: Decode Private Key and Generate JWT
         id: generate_jwt
         run: |
-          # Write the private key to a file using printf
-          printf "%s\n" "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
+          # Decode the Base64-encoded private key
+          echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY_BASE64 }}" | base64 --decode > private-key.pem
 
           # Validate the private key format
           if ! grep -q "-----BEGIN PRIVATE KEY-----" private-key.pem; then
@@ -46,12 +46,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q "-----END PRIVATE KEY-----" private-key.pem; then
-            echo "Private key format is invalid."
-            exit 1
-          fi
-
-          # Convert line endings to Unix style
+          # Convert line endings to Unix style (optional but recommended)
           sudo apt-get install -y dos2unix
           dos2unix private-key.pem
 
@@ -61,9 +56,10 @@ jobs:
             echo "Failed to generate JWT."
             exit 1
           fi
+
+          # Export JWT to be used in subsequent steps
           echo "jwt=$JWT" >> $GITHUB_OUTPUT
         shell: bash
-
 
       # Step 5: Get Installation Access Token
       - name: Get Installation Access Token
@@ -73,12 +69,18 @@ jobs:
             -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.jwt }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/app/installations/${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
-          TOKEN=$(echo $RESPONSE | jq -r .token)
+          
+          # Extract the token using jq
+          TOKEN=$(echo "$RESPONSE" | jq -r .token)
+
+          # Check if the token was successfully retrieved
           if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
             echo "Failed to obtain installation access token."
             echo "Response: $RESPONSE"
             exit 1
           fi
+
+          # Export the token to be used in subsequent steps
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
         shell: bash
 
