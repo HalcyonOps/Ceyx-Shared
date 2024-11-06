@@ -40,12 +40,6 @@ jobs:
           # Decode the Base64-encoded private key
           echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY_BASE64 }}" | base64 --decode > private-key.pem
 
-          # Validate the private key format
-          if ! grep -q "-----BEGIN RSA PRIVATE KEY-----" private-key.pem; then
-            echo "Private key format is invalid."
-            exit 1
-          fi
-
           # Convert line endings to Unix style (optional but recommended)
           sudo apt-get install -y dos2unix
           dos2unix private-key.pem
