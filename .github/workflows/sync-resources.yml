@@ -6,6 +6,7 @@ on:
       - 'resources/**'
       - 'repositories.yml'
   workflow_dispatch:
+
 jobs:
   copy-resources:
     runs-on: ubuntu-latest
@@ -28,13 +29,17 @@ jobs:
         run: |
           npm install -g jwt-cli
 
-      # Step 4: Generate a GitHub App JWT
+      # Step 3.1: Install jq for JSON parsing
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # Step 4: Generate GitHub App JWT
       - name: Generate GitHub App JWT
         id: generate_jwt
         run: |
           echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
-          JWT=$(jwt encode --alg RS256 --iss ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
-          echo "::set-output name=jwt::$JWT"
+          JWT=$(jwt encode --alg RS256 --iss ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
+          echo "jwt=$JWT" >> $GITHUB_OUTPUT
 
       # Step 5: Get Installation Access Token
       - name: Get Installation Access Token
@@ -43,26 +48,34 @@ jobs:
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.jwt }}" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/app/installations/${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
-          echo "::set-output name=token::$(echo $RESPONSE | jq -r .token)"
+            https://api.github.com/app/installations/${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}/access_tokens)
+          TOKEN=$(echo $RESPONSE | jq -r .token)
+          if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
+            echo "Failed to obtain installation access token."
+            echo "$RESPONSE"  # Output response for debugging
+            exit 1
+          fi
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
       # Step 6: Identify Changed Files in /resources
       - name: Get Changed Files in /resources
         id: changed_files
         run: |
-          echo "::set-output name=files::$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- resources/)"
+          FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- resources/)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
 
       # Step 7: Copy Files to Target Repositories
       - name: Copy Files to Targets
         env:
-          TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
+          TARGET_REPOS: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
           INSTALL_TOKEN: ${{ steps.get_install_token.outputs.token }}
+          FILES: ${{ steps.changed_files.outputs.files }}
         run: |
           # Convert TARGET_REPOS string into an array
           IFS=$'\n' read -rd '' -a repos <<< "$TARGET_REPOS"
 
           # Convert changed files string into an array
-          IFS=$'\n' read -rd '' -a files <<< "${{ steps.changed_files.outputs.files }}"
+          IFS=$'\n' read -rd '' -a files <<< "$FILES"
 
           if [ ${#files[@]} -eq 0 ]; then
             echo "No changes detected in /resources. Exiting."
