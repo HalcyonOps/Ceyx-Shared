@@ -3,7 +3,7 @@ permissions:
   contents: write
   pull-requests: write
 
-name: Sync Resources
+name: Sync Shared Resources
 
 on:
   schedule:
@@ -34,9 +34,14 @@ jobs:
           # First copy resources directory with nested items
           git checkout source/main -- resources/
           
-          # Then copy contents to root while preserving nested structure
-          # (excluding .github/workflows)
+          # Copy workflow files from resources/.github/workflows to .github/workflows
+          mkdir -p .github/workflows
+          cp -r resources/.github/workflows/* .github/workflows/
+          
+          # Then copy all contents to root while preserving nested structure
           cp -r resources/* .
+          
+          # Remove the resources directory since we've copied everything to root
           rm -rf resources/
           
           # Commit if there are changes
@@ -56,7 +61,7 @@ jobs:
           pr_body: "Automated PR to sync resources from shared repository."
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pr_label: "automerge"
-  
+
       - name: Auto-merge Pull Request
         if: steps.create-pr.outputs.pr_number
         uses: pascalgn/automerge-action@v0.16.4
@@ -68,4 +73,4 @@ jobs:
           MERGE_COMMIT_MESSAGE: "pull-request-title"
           MERGE_RETRIES: "6"
           MERGE_RETRY_SLEEP: "10000"
-          MERGE_DELETE_BRANCH: "true"
+          MERGE_DELETE_BRANCH: "true" 
