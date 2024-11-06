@@ -1,11 +1,9 @@
 name: Sync Repository Files
 
 on:
-  # Trigger on changes to resources directory
   push:
     paths:
       - 'resources/**'
-  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
@@ -38,27 +36,41 @@ jobs:
               // Clean up private key - replace literal '\n' with actual line breaks
               const privateKey = process.env.PRIVATE_KEY
                 .replace(/\\n/g, '\n')
+                .replace(/\s+/g, '\n')  // Convert any whitespace sequences to newlines
                 .trim();
               
-              // Verify private key format
-              if (!privateKey.startsWith('-----BEGIN RSA PRIVATE KEY-----')) {
-                throw new Error('Invalid private key format');
+              // Add missing headers/footers if not present
+              if (!privateKey.includes('-----BEGIN RSA PRIVATE KEY-----')) {
+                throw new Error('Private key is missing proper BEGIN header');
+              }
+              if (!privateKey.includes('-----END RSA PRIVATE KEY-----')) {
+                throw new Error('Private key is missing proper END footer');
               }
 
+              const now = Math.floor(Date.now() / 1000);
               const payload = {
-                iat: Math.floor(Date.now() / 1000) - 60,
-                exp: Math.floor(Date.now() / 1000) + (10 * 60),
-                iss: process.env.APP_ID
+                iat: now - 60,           // Issued 60 seconds ago
+                exp: now + (10 * 60),    // Expires in 10 minutes
+                iss: process.env.APP_ID.toString()  // Make sure APP_ID is a string
               };
 
-              const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-              
+              console.log('Generating JWT with payload:', JSON.stringify({
+                ...payload,
+                privateKeyLength: privateKey.length,
+                privateKeyStart: privateKey.substring(0, 50) + '...'
+              }));
+
+              const token = jwt.sign(payload, privateKey, { 
+                algorithm: 'RS256'
+              });
+
               // Verify the token can be decoded
-              jwt.verify(token, privateKey, { algorithms: ['RS256'] });
+              const decoded = jwt.verify(token, privateKey, { algorithms: ['RS256'] });
+              console.log('JWT verification successful. Token payload:', JSON.stringify(decoded));
               
-              console.log('JWT generation and verification successful');
               return token;
             } catch (error) {
+              console.error('JWT Generation failed:', error);
               core.setFailed(`JWT Generation failed: ${error.message}`);
               throw error;
             }
@@ -74,6 +86,10 @@ jobs:
             try {
               const installationId = process.env.INSTALLATION_ID;
               
+              // Add more logging
+              console.log('Using Installation ID:', installationId);
+              console.log('JWT Token length:', process.env.JWT_TOKEN.length);
+              
               const tokenResponse = await github.rest.apps.createInstallationAccessToken({
                 installation_id: installationId,
                 headers: {
@@ -81,9 +97,11 @@ jobs:
                   accept: 'application/vnd.github.v3+json'
                 }
               });
-
+              
+              console.log('Successfully obtained installation token');
               return tokenResponse.data.token;
             } catch (error) {
+              console.error('Full error:', error);
               core.setFailed(`Failed to get installation token: ${error.message}`);
               throw error;
             }
