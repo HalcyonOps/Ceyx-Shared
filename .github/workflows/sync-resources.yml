@@ -79,7 +79,7 @@ jobs:
             echo "Error: Token validation failed"
             echo "$response"
             exit 1
-          }
+          fi
           
           # Check token scopes
           scopes=$(echo "$response" | grep -i "x-oauth-scopes" || echo "none")
