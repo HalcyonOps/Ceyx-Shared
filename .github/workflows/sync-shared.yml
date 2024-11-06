@@ -2,7 +2,6 @@
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
 
 name: Sync Shared Resources
 
@@ -60,14 +59,14 @@ jobs:
           destination_branch: "main"
           pr_title: "chore: sync resources from shared repo"
           pr_body: "Automated PR to sync resources from shared repository."
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.CEYX_SHARED_WORKFLOW_TOKEN  }}
           pr_label: "automerge"
 
       - name: Auto-merge Pull Request
         if: steps.create-pr.outputs.pr_number
         uses: pascalgn/automerge-action@v0.16.4
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_WORKFLOW_TOKEN  }}
           PULL_REQUEST: ${{ steps.create-pr.outputs.pr_number }}
           MERGE_LABELS: "automerge"
           MERGE_METHOD: "squash"
