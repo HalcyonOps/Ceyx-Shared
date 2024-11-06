@@ -38,6 +38,12 @@ jobs:
         id: generate_jwt
         run: |
           echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
+
+          if ! grep -q "-----BEGIN PRIVATE KEY-----" private-key.pem; then
+                echo "Private key format is invalid."
+            exit 1
+          fi
+
           JWT=$(jwt encode --alg RS256 --iss ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
           echo "jwt=$JWT" >> $GITHUB_OUTPUT
 
