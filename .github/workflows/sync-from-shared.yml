@@ -1,4 +1,4 @@
-# Add these permission settings at the top of your workflow
+# Add these permissions at the top of your workflow file
 permissions:
   contents: write
   pull-requests: write
@@ -24,36 +24,40 @@ jobs:
           
       - name: Fetch from Source
         run: |
-          # Add source repo as remote
           git remote add source https://github.com/HalcyonOps/Ceyx-Shared.git
           git fetch source
 
       - name: Sync Resources
         run: |
-          # Create sync branch
           git checkout -b sync/resources
-          
-          # Copy resources directory contents to root
           mkdir -p temp_resources
           git checkout source/main -- resources/
           cp -r resources/* .
           rm -rf resources/
           
-          # Commit if there are changes
           if ! git diff --quiet; then
             git add .
             git commit -m "chore: sync resources from shared repo"
             git push origin sync/resources --force
           fi
 
-      - name: Create Pull Request
+      - name: Create and Auto-merge Pull Request
         uses: repo-sync/pull-request@v2
         with:
           source_branch: "sync/resources"
           destination_branch: "main"
           pr_title: "chore: sync resources from shared repo"
-          pr_body: |
-            Automated PR to sync resources from shared repository.
-            
-            Please review the changes before merging.
-          github_token: ${{ secrets.GITHUB_TOKEN }} 
+          pr_body: "Automated PR to sync resources from shared repository."
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pr_label: "automerge"  # Add automerge label
+
+      - name: Merge Pull Request
+        if: success()
+        uses: pascalgn/automerge-action@v0.16.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_LABELS: "automerge"
+          MERGE_METHOD: "squash"
+          MERGE_COMMIT_MESSAGE: "pull-request-title"
+          MERGE_RETRIES: "6"
+          MERGE_RETRY_SLEEP: "10000"
