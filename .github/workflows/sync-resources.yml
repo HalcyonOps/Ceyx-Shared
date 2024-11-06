@@ -90,7 +90,11 @@ jobs:
             }
 
             try {
-              const targetRepos = process.env.TARGET_REPOS.split(',').map(repo => repo.trim());
+              const targetRepos = process.env.TARGET_REPOS.split('\n').map(repo => {
+                // Extract only "owner/repo" part from "https://github.com/owner/repo.git"
+                const match = repo.trim().match(/github\.com\/([^/]+\/[^.]+)(?:\.git)?/);
+                return match ? match[1] : null;
+              }).filter(Boolean); // Remove null entries in case of invalid formats
               const sourceFiles = await listFiles('source-repo/resources');
               
               for (const repo of targetRepos) {
