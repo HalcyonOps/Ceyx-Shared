@@ -41,7 +41,7 @@ jobs:
           echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY_BASE64 }}" | base64 --decode > private-key.pem
 
           # Validate the private key format
-          if ! grep -q "-----BEGIN PRIVATE KEY-----" private-key.pem; then
+          if ! grep -q "-----BEGIN RSA PRIVATE KEY-----" private-key.pem; then
             echo "Private key format is invalid."
             exit 1
           fi
