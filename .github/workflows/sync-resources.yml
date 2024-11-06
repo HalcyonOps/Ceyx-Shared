@@ -8,22 +8,28 @@ on:
 
 jobs:
   sync-files:
-    runs-on: arc-runner-k8s
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
+      actions: read
+      id-token: write
     steps:
       - name: Checkout source repository
         uses: actions/checkout@v4
         with:
           path: source-repo
 
-      - name: Generate GitHub App Token (using Bash)
+      - name: Generate GitHub App Token
         id: generate-token
         env:
           APP_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
         run: |
+          if [ -z "$APP_ID" ] || [ -z "$PRIVATE_KEY" ]; then
+            echo "Error: Required environment variables are not set"
+            exit 1
+          fi
+
           echo "Generating JWT..."
           private_key="${PRIVATE_KEY//\\n/$'\n'}"
           header='{"alg":"RS256","typ":"JWT"}'
@@ -36,7 +42,6 @@ jobs:
           signature=$(echo -n "$unsigned_token" | openssl dgst -sha256 -sign <(echo -e "$private_key") | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
           jwt="$unsigned_token.$signature"
           
-          # Add error handling
           if [ -z "$jwt" ]; then
             echo "Failed to generate JWT token"
             exit 1
@@ -57,7 +62,6 @@ jobs:
     
           installation_token=$(echo "$token_response" | jq -r .token)
           
-          # Use environment file instead of set-output
           echo "INSTALLATION_TOKEN=$installation_token" >> $GITHUB_ENV
 
       - name: Sync files to target repositories
@@ -150,7 +154,6 @@ jobs:
               }
             }
             
-            // Fail workflow if too many errors occurred
             if (syncErrors > 0) {
               core.setFailed(`Failed to sync ${syncErrors} repositories`);
             }
