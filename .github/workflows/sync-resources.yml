@@ -101,7 +101,34 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/installation/repositories | jq '.'
-
+  
+      - name: Debug Repository Permissions
+        env:
+          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
+        run: |
+            echo "Checking detailed repository permissions..."
+            for repo in $(echo "${{ env.TARGET_REPOS }}" | tr '\n' ' '); do
+              repo_name=$(echo $repo | sed 's/.*github.com\/\([^.]*\).*/\1/')
+              echo "Checking $repo_name..."
+              
+              response=$(curl -sS \
+                -H "Authorization: Bearer $INSTALLATION_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$repo_name")
+              
+              echo "Full permissions for $repo_name:"
+              echo "$response" | jq '.permissions'
+              
+              # Check installation access
+              echo "Checking installation access..."
+              curl -sS \
+                -H "Authorization: Bearer $INSTALLATION_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/installation/repositories" | jq '.'
+            done
+            
       - name: Validate Repository Access
         env:
           INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
@@ -218,30 +245,3 @@ jobs:
             if (syncErrors > 0) {
               core.setFailed(`Failed to sync ${syncErrors} repositories`);
             }
-
-      - name: Debug Repository Permissions
-        env:
-          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
-        run: |
-          echo "Checking detailed repository permissions..."
-          for repo in $(echo "${{ env.TARGET_REPOS }}" | tr '\n' ' '); do
-            repo_name=$(echo $repo | sed 's/.*github.com\/\([^.]*\).*/\1/')
-            echo "Checking $repo_name..."
-            
-            response=$(curl -sS \
-              -H "Authorization: Bearer $INSTALLATION_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$repo_name")
-            
-            echo "Full permissions for $repo_name:"
-            echo "$response" | jq '.permissions'
-            
-            # Check installation access
-            echo "Checking installation access..."
-            curl -sS \
-              -H "Authorization: Bearer $INSTALLATION_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/installation/repositories" | jq '.'
-          done
