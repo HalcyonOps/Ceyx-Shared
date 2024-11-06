@@ -31,21 +31,35 @@ jobs:
 
       # Step 3.1: Install jq for JSON parsing
       - name: Install jq
-        run: sudo apt-get install -y jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       # Step 4: Generate GitHub App JWT
       - name: Generate GitHub App JWT
         id: generate_jwt
         run: |
-          echo "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
+          # Write the private key to a file using a Here Document
+          cat << 'EOF' > private-key.pem
+          ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+          EOF
 
+          # Optional: Validate the private key format
           if ! grep -q "-----BEGIN PRIVATE KEY-----" private-key.pem; then
-                echo "Private key format is invalid."
+            echo "Private key format is invalid."
             exit 1
           fi
 
+          # Convert line endings to Unix style (optional but recommended)
+          sudo apt-get install -y dos2unix
+          dos2unix private-key.pem
+
+          # Generate JWT
           JWT=$(jwt encode --alg RS256 --iss ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }} private-key.pem)
+          if [ -z "$JWT" ]; then
+            echo "Failed to generate JWT."
+            exit 1
+          fi
           echo "jwt=$JWT" >> $GITHUB_OUTPUT
+        shell: bash
 
       # Step 5: Get Installation Access Token
       - name: Get Installation Access Token
@@ -58,10 +72,11 @@ jobs:
           TOKEN=$(echo $RESPONSE | jq -r .token)
           if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
             echo "Failed to obtain installation access token."
-            echo "$RESPONSE"  # Output response for debugging
+            echo "Response: $RESPONSE"
             exit 1
           fi
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
+        shell: bash
 
       # Step 6: Identify Changed Files in /resources
       - name: Get Changed Files in /resources
@@ -69,6 +84,7 @@ jobs:
         run: |
           FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- resources/)
           echo "files=$FILES" >> $GITHUB_OUTPUT
+        shell: bash
 
       # Step 7: Copy Files to Target Repositories
       - name: Copy Files to Targets
@@ -77,6 +93,11 @@ jobs:
           INSTALL_TOKEN: ${{ steps.get_install_token.outputs.token }}
           FILES: ${{ steps.changed_files.outputs.files }}
         run: |
+          echo "TARGET_REPOS:"
+          echo "$TARGET_REPOS"
+          echo "FILES Changed:"
+          echo "$FILES"
+
           # Convert TARGET_REPOS string into an array
           IFS=$'\n' read -rd '' -a repos <<< "$TARGET_REPOS"
 
@@ -106,7 +127,13 @@ jobs:
             temp_dir=$(mktemp -d)
 
             # Clone the target repository using the Installation Token
+            echo "Cloning repository: $git_url"
             git clone "$git_url" "$temp_dir/$repo_name"
+            if [ $? -ne 0 ]; then
+              echo "Failed to clone repository: $repo"
+              rm -rf "$temp_dir"
+              continue
+            fi
 
             # Navigate to the cloned repository
             cd "$temp_dir/$repo_name"
@@ -130,9 +157,17 @@ jobs:
 
               # Copy the file
               cp "$src_file" "$target_file"
+              if [ $? -ne 0 ]; then
+                echo "Failed to copy $src_file to $target_file"
+                continue
+              fi
 
               # Stage the file
               git add "$target_file"
+              if [ $? -ne 0 ]; then
+                echo "Failed to stage $target_file"
+                continue
+              fi
 
               # Mark that changes have been made
               changes_made=true
@@ -142,11 +177,17 @@ jobs:
             if [ "$changes_made" = true ]; then
               # Commit the changes
               git commit -m "Update resources from source repository"
-
-              # Push to the target repository
-              git push origin main  # Replace 'main' with the default branch if different
-
-              echo "Changes pushed to $repo successfully."
+              if [ $? -ne 0 ]; then
+                echo "No changes to commit for $repo."
+              else
+                # Push to the target repository
+                git push origin main  # Replace 'main' with the default branch if different
+                if [ $? -eq 0 ]; then
+                  echo "Changes pushed to $repo successfully."
+                else
+                  echo "Failed to push changes to $repo."
+                fi
+              fi
             else
               echo "No changes to commit for $repo."
             fi
@@ -155,3 +196,4 @@ jobs:
             cd -
             rm -rf "$temp_dir"
           done
+        shell: bash
