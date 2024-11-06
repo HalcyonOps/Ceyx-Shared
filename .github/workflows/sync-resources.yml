@@ -27,28 +27,54 @@ jobs:
         with:
           path: source-repo
 
+      - name: Install dependencies
+        run: npm install jsonwebtoken
+
       - name: Generate GitHub App Token
         id: generate-token
         env:
           APP_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
         run: |
-          if [ -z "$APP_ID" ] || [ -z "$PRIVATE_KEY" ]; then
-            echo "Error: Required environment variables are not set"
+          # Validate and write private key with proper formatting
+          echo "$PRIVATE_KEY" | grep -q "BEGIN RSA PRIVATE KEY" || {
+            echo "Error: Private key must start with '-----BEGIN RSA PRIVATE KEY-----'"
+            exit 1
+          }
+          
+          echo "$PRIVATE_KEY" | grep -q "END RSA PRIVATE KEY" || {
+            echo "Error: Private key must end with '-----END RSA PRIVATE KEY-----'"
+            exit 1
+          }
+          
+          # Write key to file, preserving newlines
+          echo "$PRIVATE_KEY" > private-key.pem
+          
+          if [ ! -f private-key.pem ] || [ ! -s private-key.pem ]; then
+            echo "Error: Failed to write private key file"
             exit 1
           fi
 
           echo "Generating JWT..."
-          private_key="${PRIVATE_KEY//\\n/$'\n'}"
-          header='{"alg":"RS256","typ":"JWT"}'
-          now=$(date +%s)
-          payload=$(jq -n --arg iat "$((now - 60))" --arg exp "$((now + 600))" --arg iss "$APP_ID" '{iat: $iat|tonumber, exp: $exp|tonumber, iss: $iss}')
+          jwt=$(node -e "
+            const fs = require('fs');
+            const jwt = require('jsonwebtoken');
+            
+            try {
+              const privateKey = fs.readFileSync('private-key.pem');
+              const payload = {
+                iat: Math.floor(Date.now() / 1000) - 60,
+                exp: Math.floor(Date.now() / 1000) + 600,
+                iss: '$APP_ID'
+              };
+              console.log(jwt.sign(payload, privateKey, { algorithm: 'RS256' }));
+            } catch (error) {
+              console.error('Error generating JWT:', error.message);
+              process.exit(1);
+            }
+          ")
           
-          header_base64=$(echo -n "$header" | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
-          payload_base64=$(echo -n "$payload" | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
-          unsigned_token="$header_base64.$payload_base64"
-          signature=$(echo -n "$unsigned_token" | openssl dgst -sha256 -sign <(echo -e "$private_key") | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
-          jwt="$unsigned_token.$signature"
+          rm private-key.pem  # Clean up
           
           if [ -z "$jwt" ]; then
             echo "Failed to generate JWT token"
