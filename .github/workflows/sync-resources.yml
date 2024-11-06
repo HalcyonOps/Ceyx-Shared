@@ -13,24 +13,6 @@ jobs:
       contents: write
       actions: write
     steps:
-      - name: Generate a token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
-          private-key: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-
-      - name: Checkout source repository
-        uses: actions/checkout@v4
-        with:
-          path: source-repo
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Generate GitHub App Token (using Bash)
         id: generate-token
         env:
@@ -56,36 +38,31 @@ jobs:
         id: get-installation-token
         env:
           INSTALLATION_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}
+          TOKEN: ${{ env.TOKEN }}
         run: |
           echo "Retrieving installation token..."
           token_response=$(curl -s -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens")
-  
+    
           installation_token=$(echo "$token_response" | jq -r .token)
           
           # Use environment file instead of set-output
           echo "INSTALLATION_TOKEN=$installation_token" >> $GITHUB_ENV
 
-      - name: Test Installation Token Access
-        env:
-          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
-        run: |
-          curl -s -H "Authorization: token $INSTALLATION_TOKEN" \
-          -H "Accept: application/vnd.github+json" \
-          "https://api.github.com/repos/HalcyonOps/Ceyx-AWS-EC2" || echo "Token access failed"
-
       - name: Sync files to target repositories
         uses: actions/github-script@v7
         env:
           INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
-          TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
+          TARGET_REPOS: |
+            https://github.com/HalcyonOps/Ceyx-AWS-EC2.git
+            https://github.com/HalcyonOps/Ceyx-AWS-VPC.git
         with:
           script: |
             const fs = require('fs').promises;
             const path = require('path');
-
+    
             async function listFiles(dir) {
               const files = [];
               async function traverse(currentPath, relativePath = '') {
@@ -103,12 +80,12 @@ jobs:
               await traverse(dir);
               return files;
             }
-
+    
             const targetRepos = process.env.TARGET_REPOS.split('\n').map(repo => {
               const match = repo.trim().match(/github\.com\/([^/]+\/[^.]+)(?:\.git)?/);
               return match ? match[1] : null;
             }).filter(Boolean);
-
+    
             for (const repo of targetRepos) {
               const [owner, repoName] = repo.split('/');
               console.log(`Processing target repository: ${repo}`);
@@ -122,12 +99,12 @@ jobs:
                 
                 const defaultBranch = repoData.default_branch;
                 const sourceFiles = await listFiles('source-repo/resources');
-
+    
                 for (const file of sourceFiles) {
                   try {
                     const content = await fs.readFile(file.fullPath, 'base64');
                     let sha;
-
+    
                     try {
                       const { data: existingFile } = await github.rest.repos.getContent({
                         owner,
@@ -139,7 +116,7 @@ jobs:
                     } catch (error) {
                       if (error.status !== 404) throw error; // 404 means file doesn't exist yet
                     }
-
+    
                     await github.rest.repos.createOrUpdateFileContents({
                       owner,
                       repo: repoName,
@@ -150,7 +127,7 @@ jobs:
                       branch: defaultBranch,
                       headers: { authorization: `token ${process.env.INSTALLATION_TOKEN}` }
                     });
-
+    
                     console.log(`Successfully synced ${file.relativePath} to ${repo}`);
                   } catch (error) {
                     console.error(`Failed to sync ${file.relativePath} to ${repo}: ${error.message}`);
