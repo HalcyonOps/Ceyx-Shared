@@ -2,6 +2,7 @@
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 name: Sync Resources
 
