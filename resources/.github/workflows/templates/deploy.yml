@@ -1,0 +1,49 @@
+# .github/workflows/templates/deploy.yml
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy Terraform Infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Install Terraform Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl wget unzip python3-pip
+          # Install terraform-docs
+          wget https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+          tar -xzf terraform-docs-v0.16.0-linux-amd64.tar.gz
+          sudo mv terraform-docs /usr/local/bin/
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Terraform Init
+        run: terraform init -plugin-cache=~/.terraform.d/plugin-cache
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan

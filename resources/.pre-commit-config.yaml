@@ -1,0 +1,35 @@
+repos:
+-   repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+    -   id: terraform_fmt
+        args:
+            - --args=-no-color
+            - --args=-diff
+            - --args=-write=false
+    -   id: terraform_validate
+        args:
+        - --hook-config=--retry-once-with-cleanup=true
+    -   id: terraform_docs
+        files: ^modules/[^/]+/[^/]+/[^/]+\.tf$
+        args:
+        - --hook-config=--create-file-if-not-exist=true
+        - --hook-config=--add-to-existing-file=true
+    -   id: terraform_checkov
+        args:
+        - --args=--quiet
+    -   id: terraform_tflint
+        args:
+        - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+        exclude: ^backend/.*
+    -   id: terraform_trivy
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: check-merge-conflict
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
+    -   id: check-yaml
+        files: \.(yaml|yml)$
+    -   id: check-added-large-files
