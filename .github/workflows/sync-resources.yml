@@ -37,18 +37,21 @@ jobs:
       - name: Generate GitHub App JWT
         id: generate_jwt
         run: |
-          # Write the private key to a file using a Here Document
-          cat << 'EOF' > private-key.pem
-          ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
-          EOF
+          # Write the private key to a file using printf
+          printf "%s\n" "${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}" > private-key.pem
 
-          # Optional: Validate the private key format
+          # Validate the private key format
           if ! grep -q "-----BEGIN PRIVATE KEY-----" private-key.pem; then
             echo "Private key format is invalid."
             exit 1
           fi
 
-          # Convert line endings to Unix style (optional but recommended)
+          if ! grep -q "-----END PRIVATE KEY-----" private-key.pem; then
+            echo "Private key format is invalid."
+            exit 1
+          fi
+
+          # Convert line endings to Unix style
           sudo apt-get install -y dos2unix
           dos2unix private-key.pem
 
@@ -60,6 +63,7 @@ jobs:
           fi
           echo "jwt=$JWT" >> $GITHUB_OUTPUT
         shell: bash
+
 
       # Step 5: Get Installation Access Token
       - name: Get Installation Access Token
