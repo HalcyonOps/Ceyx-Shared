@@ -20,113 +20,44 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install jsonwebtoken
-
-      - name: Generate GitHub App Token
+      - name: Generate GitHub App Token (using Bash)
         id: generate-token
-        uses: actions/github-script@v7
         env:
           APP_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
-        with:
-          script: |
-            const jwt = require('jsonwebtoken');
-            try {
-              let privateKey = process.env.PRIVATE_KEY;
-              
-              // Log the initial state (safely)
-              console.log('Initial private key length:', privateKey.length);
-              console.log('First few characters:', privateKey.substring(0, 10));
-              
-              // Clean up the private key
-              privateKey = privateKey
-                .replace(/\\n/g, '\n')  // Replace literal \n with newlines
-                .replace(/["']/g, '')   // Remove any quotes
-                .trim();                // Remove leading/trailing whitespace
-              
-              // Ensure proper PEM format
-              if (!privateKey.includes('-----BEGIN')) {
-                console.log('Adding PEM headers...');
-                privateKey = `-----BEGIN RSA PRIVATE KEY-----\n${privateKey}\n-----END RSA PRIVATE KEY-----`;
-              }
-              
-              // Format key with proper line breaks
-              const keyParts = privateKey.split('\n');
-              let formattedKey = '';
-              for (const part of keyParts) {
-                if (part.startsWith('-----')) {
-                  formattedKey += part + '\n';
-                } else {
-                  // Split long lines into 64-character chunks
-                  const chunks = part.match(/.{1,64}/g) || [];
-                  formattedKey += chunks.join('\n') + '\n';
-                }
-              }
-              
-              // Log the formatted key structure (safely)
-              console.log('Formatted key structure:');
-              console.log('- Starts with:', formattedKey.substring(0, 27));
-              console.log('- Ends with:', formattedKey.slice(-25));
-              console.log('- Total lines:', formattedKey.split('\n').length);
-              
-              const now = Math.floor(Date.now() / 1000);
-              const payload = {
-                iat: now - 60,
-                exp: now + (10 * 60),
-                iss: process.env.APP_ID.toString()
-              };
-
-              console.log('Creating JWT with payload:', JSON.stringify(payload));
-              
-              const token = jwt.sign(payload, formattedKey, { 
-                algorithm: 'RS256'
-              });
-              
-              // Verify the token
-              jwt.verify(token, formattedKey, { algorithms: ['RS256'] });
-              console.log('JWT verification successful');
-              
-              return token;
-            } catch (error) {
-              console.error('JWT Generation error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-              });
-              core.setFailed(`JWT Generation failed: ${error.message}`);
-              throw error;
-            }
+        run: |
+          echo "Generating JWT..."
+          private_key="${PRIVATE_KEY//\\n/$'\n'}"
+          header='{"alg":"RS256","typ":"JWT"}'
+          now=$(date +%s)
+          payload=$(jq -n --arg iat "$((now - 60))" --arg exp "$((now + 600))" --arg iss "$APP_ID" '{iat: $iat|tonumber, exp: $exp|tonumber, iss: $iss}')
+          
+          header_base64=$(echo -n "$header" | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          payload_base64=$(echo -n "$payload" | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          unsigned_token="$header_base64.$payload_base64"
+          signature=$(echo -n "$unsigned_token" | openssl dgst -sha256 -sign <(echo -e "$private_key") | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
+          jwt="$unsigned_token.$signature"
+          echo "::set-output name=token::$jwt"
 
       - name: Get Installation Token
         id: get-installation-token
-        uses: actions/github-script@v7
         env:
-          JWT_TOKEN: ${{ steps.generate-token.outputs.result }}
+          JWT_TOKEN: ${{ steps.generate-token.outputs.token }}
           INSTALLATION_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}
-        with:
-          script: |
-            try {
-              const installationId = process.env.INSTALLATION_ID;
-              const response = await github.rest.apps.createInstallationAccessToken({
-                installation_id: installationId,
-                headers: {
-                  authorization: `Bearer ${process.env.JWT_TOKEN}`,
-                  accept: 'application/vnd.github.v3+json'
-                }
-              });
-              
-              return response.data.token;
-            } catch (error) {
-              core.setFailed(`Failed to get installation token: ${error.message}`);
-              throw error;
-            }
+        run: |
+          echo "Retrieving installation token..."
+          token_response=$(curl -s -X POST \
+            -H "Authorization: Bearer $JWT_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens")
 
+          installation_token=$(echo "$token_response" | jq -r .token)
+          echo "::set-output name=installation_token::$installation_token"
 
       - name: Sync files to target repositories
         uses: actions/github-script@v7
         env:
-          INSTALLATION_TOKEN: ${{ steps.get-installation-token.outputs.result }}
+          INSTALLATION_TOKEN: ${{ steps.get-installation-token.outputs.installation_token }}
           TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
         with:
           script: |
