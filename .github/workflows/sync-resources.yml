@@ -9,7 +9,6 @@ on:
 jobs:
   sync-files:
     runs-on: ubuntu-latest
-    permissions: write-all
     steps:
       - name: Checkout source repository
         uses: actions/checkout@v4
@@ -38,12 +37,14 @@ jobs:
           unsigned_token="$header_base64.$payload_base64"
           signature=$(echo -n "$unsigned_token" | openssl dgst -sha256 -sign <(echo -e "$private_key") | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
           jwt="$unsigned_token.$signature"
-          echo "::set-output name=token::$jwt"
+          
+          # Use environment file instead of set-output
+          echo "TOKEN=$jwt" >> $GITHUB_ENV
 
       - name: Get Installation Token
         id: get-installation-token
         env:
-          JWT_TOKEN: ${{ steps.generate-token.outputs.token }}
+          JWT_TOKEN: ${{ env.TOKEN }}
           INSTALLATION_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}
         run: |
           echo "Retrieving installation token..."
@@ -53,11 +54,13 @@ jobs:
             "https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens")
 
           installation_token=$(echo "$token_response" | jq -r .token)
-          echo "::set-output name=installation_token::$installation_token"
+          
+          # Use environment file instead of set-output
+          echo "INSTALLATION_TOKEN=$installation_token" >> $GITHUB_ENV
 
       - name: Test Installation Token Access
         env:
-          INSTALLATION_TOKEN: ${{ steps.get-installation-token.outputs.installation_token }}
+          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
         run: |
           curl -s -H "Authorization: token $INSTALLATION_TOKEN" \
           -H "Accept: application/vnd.github+json" \
@@ -66,7 +69,7 @@ jobs:
       - name: Sync files to target repositories
         uses: actions/github-script@v7
         env:
-          INSTALLATION_TOKEN: ${{ steps.get-installation-token.outputs.installation_token }}
+          INSTALLATION_TOKEN: ${{ env.INSTALLATION_TOKEN }}
           TARGET_REPOS: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_TARGET_REPOS }}
         with:
           script: |
