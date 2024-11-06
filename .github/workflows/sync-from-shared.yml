@@ -1,3 +1,8 @@
+# Add these permission settings at the top of your workflow
+permissions:
+  contents: write
+  pull-requests: write
+
 name: Sync Resources
 
 on:
