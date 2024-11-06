@@ -7,12 +7,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  docs:
+  sync-files:
     runs-on: arc-runner-k8s
     permissions:
       contents: write
       actions: write
     steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          path: source-repo
+
       - name: Generate GitHub App Token (using Bash)
         id: generate-token
         env:
@@ -31,7 +36,11 @@ jobs:
           signature=$(echo -n "$unsigned_token" | openssl dgst -sha256 -sign <(echo -e "$private_key") | openssl base64 -e | tr -d '=' | tr '/+' '_-' | tr -d '\n')
           jwt="$unsigned_token.$signature"
           
-          # Use environment file instead of set-output
+          # Add error handling
+          if [ -z "$jwt" ]; then
+            echo "Failed to generate JWT token"
+            exit 1
+          fi
           echo "TOKEN=$jwt" >> $GITHUB_ENV
 
       - name: Get Installation Token
@@ -86,6 +95,8 @@ jobs:
               return match ? match[1] : null;
             }).filter(Boolean);
     
+            let syncErrors = 0;
+    
             for (const repo of targetRepos) {
               const [owner, repoName] = repo.split('/');
               console.log(`Processing target repository: ${repo}`);
@@ -135,5 +146,11 @@ jobs:
                 }
               } catch (error) {
                 console.error(`Failed to process repository ${repo}: ${error.message}`);
+                syncErrors++;
               }
+            }
+            
+            // Fail workflow if too many errors occurred
+            if (syncErrors > 0) {
+              core.setFailed(`Failed to sync ${syncErrors} repositories`);
             }
