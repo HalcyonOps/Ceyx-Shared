@@ -36,7 +36,12 @@ jobs:
           APP_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
           PRIVATE_KEY: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
         run: |
+          # Debug environment variables (masked)
+          echo "APP_ID length: ${#APP_ID}"
+          echo "PRIVATE_KEY length: ${#PRIVATE_KEY}"
+          
           # Validate and write private key with proper formatting
+          echo "Validating private key format..."
           echo "$PRIVATE_KEY" | grep -q "BEGIN RSA PRIVATE KEY" || {
             echo "Error: Private key must start with '-----BEGIN RSA PRIVATE KEY-----'"
             exit 1
@@ -54,6 +59,14 @@ jobs:
             echo "Error: Failed to write private key file"
             exit 1
           fi
+          
+          # Debug private key file (without exposing key)
+          echo "Private key file stats:"
+          stat private-key.pem
+          echo "Private key file line count:"
+          wc -l private-key.pem
+          echo "Private key structure (redacted):"
+          sed 's/.*/----- REDACTED -----/' private-key.pem
 
           echo "Generating JWT..."
           jwt=$(node -e "
@@ -62,12 +75,18 @@ jobs:
             
             try {
               const privateKey = fs.readFileSync('private-key.pem');
+              console.error('Private key loaded, length:', privateKey.length);
+              
               const payload = {
                 iat: Math.floor(Date.now() / 1000) - 60,
                 exp: Math.floor(Date.now() / 1000) + 600,
                 iss: '$APP_ID'
               };
-              console.log(jwt.sign(payload, privateKey, { algorithm: 'RS256' }));
+              console.error('JWT payload:', JSON.stringify(payload));
+              
+              const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+              console.error('JWT token length:', token.length);
+              console.log(token);
             } catch (error) {
               console.error('Error generating JWT:', error.message);
               process.exit(1);
@@ -80,7 +99,27 @@ jobs:
             echo "Failed to generate JWT token"
             exit 1
           fi
+          
+          # Debug JWT structure (without exposing token)
+          echo "JWT token length: ${#jwt}"
+          echo "JWT token structure:"
+          echo "$jwt" | awk -F. '{print "Header: " $1 "\nPayload: " $2 "\nSignature: " $3}'
+          
           echo "TOKEN=$jwt" >> $GITHUB_ENV
+
+      - name: Debug Token
+        if: always()
+        run: |
+          echo "Environment variables set:"
+          env | grep -i token | sed 's/=.*/=*** (redacted)/'
+          
+          if [ -n "$TOKEN" ]; then
+            echo "TOKEN is set, length: ${#TOKEN}"
+            echo "TOKEN structure:"
+            echo "$TOKEN" | awk -F. '{print "Header: " $1 "\nPayload: " $2 "\nSignature: " $3}'
+          else
+            echo "TOKEN is not set!"
+          fi
 
       - name: Get Installation Token
         id: get-installation-token
