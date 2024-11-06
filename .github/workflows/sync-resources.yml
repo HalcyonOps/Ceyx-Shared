@@ -44,15 +44,14 @@ jobs:
       - name: Get Installation Token
         id: get-installation-token
         env:
-          JWT_TOKEN: ${{ env.TOKEN }}
           INSTALLATION_ID: ${{ vars.CEYX_SHARED_RESOURCES_SYNC_APP_INSTALLATION_ID }}
         run: |
           echo "Retrieving installation token..."
           token_response=$(curl -s -X POST \
-            -H "Authorization: Bearer $JWT_TOKEN" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens")
-
+  
           installation_token=$(echo "$token_response" | jq -r .token)
           
           # Use environment file instead of set-output
