@@ -41,7 +41,8 @@ jobs:
             git push origin sync/resources --force
           fi
 
-      - name: Create and Auto-merge Pull Request
+      - name: Create Pull Request
+        id: create-pr
         uses: repo-sync/pull-request@v2
         with:
           source_branch: "sync/resources"
@@ -49,15 +50,25 @@ jobs:
           pr_title: "chore: sync resources from shared repo"
           pr_body: "Automated PR to sync resources from shared repository."
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_label: "automerge"  # Add automerge label
+          pr_label: "automerge"
 
-      - name: Merge Pull Request
-        if: success()
+      - name: Enable Auto-merge
+        if: steps.create-pr.outputs.pr_number
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.create-pr.outputs.pr_number }}
+          merge-method: squash
+
+      - name: Auto-merge Pull Request
+        if: steps.create-pr.outputs.pr_number
         uses: pascalgn/automerge-action@v0.16.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ steps.create-pr.outputs.pr_number }}
           MERGE_LABELS: "automerge"
           MERGE_METHOD: "squash"
           MERGE_COMMIT_MESSAGE: "pull-request-title"
           MERGE_RETRIES: "6"
           MERGE_RETRY_SLEEP: "10000"
+          MERGE_DELETE_BRANCH: "true"
