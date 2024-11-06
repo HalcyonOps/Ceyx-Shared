@@ -1,0 +1,8 @@
+# Define which repositories to sync to
+group:
+  repos: |
+    HalcyonOps/Ceyx-AWS-EC2
+    HalcyonOps/Ceyx-AWS-VPC
+  files:
+    - source: resources/
+      dest: resources/ 

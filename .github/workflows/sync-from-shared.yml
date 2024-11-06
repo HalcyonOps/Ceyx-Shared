@@ -1,0 +1,54 @@
+name: Sync Resources
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:        # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+      - name: Fetch from Source
+        run: |
+          # Add source repo as remote
+          git remote add source https://github.com/HalcyonOps/Ceyx-Shared.git
+          git fetch source
+
+      - name: Sync Resources
+        run: |
+          # Create sync branch
+          git checkout -b sync/resources
+          
+          # Copy resources directory contents to root
+          mkdir -p temp_resources
+          git checkout source/main -- resources/
+          cp -r resources/* .
+          rm -rf resources/
+          
+          # Commit if there are changes
+          if ! git diff --quiet; then
+            git add .
+            git commit -m "chore: sync resources from shared repo"
+            git push origin sync/resources --force
+          fi
+
+      - name: Create Pull Request
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: "sync/resources"
+          destination_branch: "main"
+          pr_title: "chore: sync resources from shared repo"
+          pr_body: |
+            Automated PR to sync resources from shared repository.
+            
+            Please review the changes before merging.
+          github_token: ${{ secrets.GITHUB_TOKEN }} 
