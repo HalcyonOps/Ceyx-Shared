@@ -18,10 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         
+      - name: Generate GitHub App Token
+        uses: tibdex/github-app-token@v2
+        id: generate-token
+        with:
+          app_id: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_ID }}
+          private_key: ${{ secrets.CEYX_SHARED_RESOURCES_SYNC_APP_PRIVATE_KEY }}
+
       - name: Configure Git
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "GitHub App"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
       - name: Fetch from Source
         run: |
@@ -42,9 +49,6 @@ jobs:
           # Then copy all contents to root while preserving nested structure
           cp -r resources/* .
           
-          # Remove the resources directory since we've copied everything to root
-          rm -rf resources/
-          
           # Commit if there are changes
           if ! git diff --quiet; then
             git add .
@@ -53,25 +57,24 @@ jobs:
           fi
 
       - name: Create Pull Request
-        id: create-pr
         uses: repo-sync/pull-request@v2
         with:
           source_branch: "sync/resources"
           destination_branch: "main"
           pr_title: "chore: sync resources from shared repo"
           pr_body: "Automated PR to sync resources from shared repository."
-          github_token: ${{ secrets.CEYX_SHARED_WORKFLOW_TOKEN  }}
+          github_token: ${{ steps.generate-token.outputs.token }}
           pr_label: "automerge"
 
       - name: Auto-merge Pull Request
         if: steps.create-pr.outputs.pr_number
         uses: pascalgn/automerge-action@v0.16.4
         env:
-          GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_WORKFLOW_TOKEN  }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           PULL_REQUEST: ${{ steps.create-pr.outputs.pr_number }}
           MERGE_LABELS: "automerge"
           MERGE_METHOD: "squash"
           MERGE_COMMIT_MESSAGE: "pull-request-title"
           MERGE_RETRIES: "6"
           MERGE_RETRY_SLEEP: "10000"
-          MERGE_DELETE_BRANCH: "true" 
+          MERGE_DELETE_BRANCH: "true"
