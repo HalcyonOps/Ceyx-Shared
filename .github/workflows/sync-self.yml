@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history
+          ref: main       # Explicitly checkout main branch
         
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -59,7 +62,7 @@ jobs:
           cp -r resources/.github/workflows/* .github/workflows/
           
           # Commit all changes if any exist
-          if ! git diff --quiet; then
+          if [ -n "$(git status --porcelain)" ]; then
             git add .
             git commit -m "chore: sync resources and workflows from shared repo
 
