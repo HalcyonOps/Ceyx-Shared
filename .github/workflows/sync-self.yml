@@ -1,15 +1,15 @@
-# Add these permissions at the top of your workflow file
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
-
-name: Sync Shared Resources
+name: Sync Resources
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:        # Manual trigger
+  push:
+    branches: [ main ]
+    paths:
+      - 'resources/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write      # Only need this for creating PRs
+  pull-requests: write # Only need this for creating PRs
 
 jobs:
   sync:
@@ -18,23 +18,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get full history
-          ref: main       # Explicitly checkout main branch
-        
+          fetch-depth: 0
+          ref: main
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY_SHARED }}
-      
-      - name: Configure Git
-        run: |
-          git config user.name "GitHub App"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
-      - name: Fetch from Source
-        run: |
-          git remote add source git@github.com:HalcyonOps/Ceyx-Shared.git
-          git fetch source
+          ssh-private-key: ${{ secrets.DEPLOY_KEY_SHARED  }}
 
       - name: Sync Resources and Workflows
         run: |
@@ -60,6 +50,10 @@ jobs:
           # Copy workflows specifically
           mkdir -p .github/workflows
           cp -r resources/.github/workflows/* .github/workflows/
+          
+          # Configure git for commits
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
           
           # Commit all changes if any exist
           if [ -n "$(git status --porcelain)" ]; then
