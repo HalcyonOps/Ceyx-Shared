@@ -44,8 +44,13 @@ jobs:
           mkdir -p .github/workflows
           cp -r resources/.github/workflows/* .github/workflows/
           
-          # Then copy all contents to root while preserving nested structure
-          cp -r resources/* .
+          # Create a temporary directory for the root copy
+          mkdir -p temp_resources
+          cp -r resources/* temp_resources/
+          
+          # Copy to root while preserving the original resources directory
+          cp -r temp_resources/* .
+          rm -rf temp_resources
           
           # Commit if there are changes
           if ! git diff --quiet; then
