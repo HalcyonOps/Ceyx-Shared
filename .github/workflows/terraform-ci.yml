@@ -1,0 +1,62 @@
+# .github/workflows/terraform-ci.yml
+name: Terraform CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  terraform:
+    name: Terraform Lint, Validate, and Generate Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Install Terraform Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y curl wget unzip python3-pip
+          # Install TFLint
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          # Install terraform-docs
+          wget https://github.com/terraform-docs/terraform-docs/releases/download/v0.16.0/terraform-docs-v0.16.0-linux-amd64.tar.gz
+          tar -xzf terraform-docs-v0.16.0-linux-amd64.tar.gz
+          sudo mv terraform-docs /usr/local/bin/
+
+      - name: Cache Terraform Providers
+        uses: actions/cache@v3
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/*.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Terraform Init
+        run: terraform init -plugin-cache=~/.terraform.d/plugin-cache
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Run TFLint
+        run: tflint
+
+      - name: Generate Documentation with Terraform-docs
+        run: terraform-docs markdown table . > README.md

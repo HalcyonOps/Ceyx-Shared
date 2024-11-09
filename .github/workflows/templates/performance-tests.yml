@@ -1,0 +1,45 @@
+# .github/workflows/templates/performance-tests.yml
+name: Performance Testing
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+  # Additional permissions as required by testing tools
+
+jobs:
+  performance:
+    name: Run Performance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install Performance Testing Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y apache2-utils
+
+      - name: Run Load Test
+        run: |
+          ab -n 1000 -c 100 https://your-application-endpoint.com/
+
+      - name: Upload Load Test Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-report
+          path: ./load-test-results.txt
