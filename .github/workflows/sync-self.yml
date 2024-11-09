@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write      # Only need this for creating PRs
-  pull-requests: write # Only need this for creating PRs
+  contents: write
+  pull-requests: write
 
 jobs:
   sync:
@@ -20,57 +20,46 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY_SHARED }}
-
-      - name: Add Source Remote
+          
+      - name: Configure Git
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add Source Remote and Sync
+        run: |
+          # Setup remotes
           git remote add source git@github.com:HalcyonOps/Ceyx-Shared.git
           git fetch source
-
-      - name: Sync Resources and Workflows
-        run: |
-          # Configure git to use SSH instead of HTTPS
           git remote set-url origin git@github.com:HalcyonOps/Ceyx-Shared.git
           
-          # Create temporary branch
+          # Create clean sync branch
           git checkout -b sync/resources-temp
           
-          # PART 1: Handle non-workflow resources
-          echo "Syncing non-workflow resources..."
-          
-          # Create temp directory for staging non-workflow files
+          # Sync resources
           mkdir -p temp_staging
-          git checkout source/main -- resources/ || git checkout source/master -- resources/
           cp -r resources/* temp_staging/
-          rm -rf temp_staging/.github || true
-          
-          # Copy non-workflow files to root while preserving structure
           cp -r temp_staging/* .
           rm -rf temp_staging
           
-          # PART 2: Handle workflow files separately
-          echo "Syncing workflow files..."
-          
-          # Copy workflows specifically
+          # Sync workflows
           mkdir -p .github/workflows
           cp -r resources/.github/workflows/* .github/workflows/
-          
-          # Configure git for commits
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          
-          # Commit all changes if any exist
+
+          # Commit changes if any exist
           if [ -n "$(git status --porcelain)" ]; then
             git add .
-            git commit -m "chore: sync resources and workflows from shared repo
-
-            - Non-workflow resources synced from resources/*
-            - Workflow files synced from resources/.github/workflows/*"
+            git commit -m "chore: sync resources and workflows from shared repo" -m "Automated sync of resources/* and .github/workflows/*"
             git push origin sync/resources-temp --force
+          else
+            echo "No changes to commit"
+            exit 0
           fi
 
       - name: Create Pull Request
