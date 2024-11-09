@@ -24,7 +24,12 @@ jobs:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_KEY_SHARED  }}
+          ssh-private-key: ${{ secrets.DEPLOY_KEY_SHARED }}
+
+      - name: Add Source Remote
+        run: |
+          git remote add source git@github.com:HalcyonOps/Ceyx-Shared.git
+          git fetch source
 
       - name: Sync Resources and Workflows
         run: |
@@ -36,7 +41,7 @@ jobs:
           
           # Create temp directory for staging non-workflow files
           mkdir -p temp_staging
-          git checkout source/main -- resources/
+          git checkout source/main -- resources/ || git checkout source/master -- resources/
           cp -r resources/* temp_staging/
           rm -rf temp_staging/.github || true
           
