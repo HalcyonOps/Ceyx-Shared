@@ -12,6 +12,7 @@ jobs:
     env:
       REPOSITORIES: |
         HalcyonOps/Ceyx-AWS-EC2
+        HalcyonOps/Ceyx-AWS-S3Bucket
         HalcyonOps/Ceyx-AWS-VPC
     steps:
       - name: Checkout Repository
