@@ -3,14 +3,29 @@
     "extends": [
         "config:base"
     ],
-    "repositories": [
-        "HalcyonOps/Ceyx-AWS-EC2",
-        "HalcyonOps/Ceyx-AWS-VPC"
+    "gitAuthor": "bot@mend.io",
+    "platformCommit": true,
+    "enabledManagers": ["regex"],
+    "regexManagers": [
+        {
+            "fileMatch": [
+                "^resources/shared/.*$"
+            ],
+            "matchStrings": [".*"],
+            "datasourceTemplate": "git",
+            "depNameTemplate": "shared-files",
+            "lookupNameTemplate": "HalcyonOps/Ceyx-Shared"
+        }
     ],
     "packageRules": [
         {
-            "description": "Sync shared documentation files",
-            "matchRepositories": [
+            "matchDatasources": ["git"],
+            "matchDepNames": ["shared-files"],
+            "targetBranch": "main",
+            "schedule": ["0 3 * * *"],
+            "automerge": true,
+            "automergeType": "branch",
+            "repositories": [
                 "HalcyonOps/Ceyx-AWS-EC2",
                 "HalcyonOps/Ceyx-AWS-VPC"
             ],
@@ -22,32 +37,7 @@
             }
         }
     ],
-    "schedule": [
-        "0 3 * * *"
-    ],
     "timezone": "America/New_York",
-    "postUpgradeTasks": {
-        "commands": [
-            "echo 'Files copied from HalcyonOps/Ceyx-Shared to target repositories.'"
-        ],
-        "executionMode": "branch"
-    },
-    "enableManualConfirmation": true,
-    "prHourlyLimit": 0,
-    "automerge": true,
-    "automergeType": "branch",
-    "platformAutomerge": true,
-    "on": {
-        "push": {
-            "branches": [
-                "main"
-            ]
-        },
-        "pull_request": {
-            "branches": [
-                "main"
-            ]
-        },
-        "workflow_dispatch": {}
-    }
+    "schedule": ["0 3 * * *"],
+    "prHourlyLimit": 0
 }
