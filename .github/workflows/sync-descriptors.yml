@@ -13,8 +13,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4.2.2
 
+      - name: Check for Changes in Shared Files
+        id: check_changes
+        run: |
+          repos=("HalcyonOps/Ceyx-AWS-EC2" "HalcyonOps/Ceyx-AWS-VPC")
+          changes_detected=false
+          for repo in "${repos[@]}"; do
+            git diff --exit-code HEAD "https://github.com/$repo.git" -- resources/shared/ || changes_detected=true
+          done
+          echo "changes_detected=$changes_detected" >> $GITHUB_OUTPUT
+
       - name: Sync Shared Files
         id: sync
+        if: steps.check_changes.outputs.changes_detected == 'true'
         uses: varunsridharan/action-github-workflow-sync@3.4
         with:
           GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
@@ -30,21 +41,16 @@ jobs:
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
 
-      - name: Debug Sync Outputs
-        run: |
-          echo "Pull Request URL: ${{ steps.sync.outputs.pull_request_url }}"
-        
       - name: Enable Auto-Merge for Pull Requests
-        if: steps.sync.outputs.pull_request_urls != ''
+        if: steps.sync.outputs.pull_request_url != ''
         run: |
           repos=("HalcyonOps/Ceyx-AWS-EC2" "HalcyonOps/Ceyx-AWS-VPC")
-          IFS=',' read -r -a pr_urls <<< "${{ steps.sync.outputs.pull_request_urls }}"
-          for i in "${!repos[@]}"; do
-            pr_url="${pr_urls[$i]}"
+          for repo in "${repos[@]}"; do
+            pr_url=$(gh pr list --repo "$repo" --author "github-actions[bot]" --state open --json url --jq '.[0].url')
             if [ -n "$pr_url" ]; then
-              gh pr merge --auto --squash "$pr_url" --repo "${repos[$i]}"
+              gh pr merge --auto --squash "$pr_url" --repo "$repo"
             else
-              echo "No open pull request found for ${repos[$i]}"
+              echo "No open pull request found for $repo"
             fi
           done
         env:
