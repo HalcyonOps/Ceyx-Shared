@@ -9,6 +9,7 @@
     ],
     "packageRules": [
         {
+            "description": "Sync shared documentation files",
             "matchRepositories": [
                 "HalcyonOps/Ceyx-AWS-EC2",
                 "HalcyonOps/Ceyx-AWS-VPC"
@@ -22,13 +23,20 @@
         }
     ],
     "schedule": [
-        "* 3 * * *"
+        "0 3 * * *"
     ],
+    "timezone": "America/New_York",
     "postUpgradeTasks": {
         "commands": [
             "echo 'Files copied from HalcyonOps/Ceyx-Shared to target repositories.'"
-        ]
+        ],
+        "executionMode": "branch"
     },
+    "enableManualConfirmation": true,
+    "prHourlyLimit": 0,
+    "automerge": true,
+    "automergeType": "branch",
+    "platformAutomerge": true,
     "on": {
         "push": {
             "branches": [
