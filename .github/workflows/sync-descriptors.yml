@@ -41,7 +41,7 @@ jobs:
               # Enable auto-merge for the PR
               gh pr merge --auto --squash "$pr_number" --repo "$repo"
               # Wait for the PR to be merged
-              while gh pr view "$pr_number" --repo "$repo" --json merged --jq '.merged' | grep -q 'false'; do
+              while [ "$(gh pr view "$pr_number" --repo "$repo" --json state --jq '.state')" != "MERGED" ]; do
                 echo "Waiting for PR #$pr_number to merge..."
                 sleep 5
               done
