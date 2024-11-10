@@ -4,14 +4,18 @@
         "config:base"
     ],
     "gitAuthor": "bot@mend.io",
-    "platformCommit": true,
-    "enabledManagers": ["regex"],
+    "platformCommit": "auto",
+    "enabledManagers": [
+        "regex"
+    ],
     "regexManagers": [
         {
             "fileMatch": [
                 "^resources/shared/.*$"
             ],
-            "matchStrings": [".*"],
+            "matchStrings": [
+                ".*"
+            ],
             "datasourceTemplate": "git",
             "depNameTemplate": "shared-files",
             "lookupNameTemplate": "HalcyonOps/Ceyx-Shared"
@@ -19,10 +23,16 @@
     ],
     "packageRules": [
         {
-            "matchDatasources": ["git"],
-            "matchDepNames": ["shared-files"],
+            "matchDatasources": [
+                "git"
+            ],
+            "matchDepNames": [
+                "shared-files"
+            ],
             "targetBranch": "main",
-            "schedule": ["0 3 * * *"],
+            "schedule": [
+                "0 3 * * *"
+            ],
             "automerge": true,
             "automergeType": "branch",
             "repositories": [
@@ -38,6 +48,8 @@
         }
     ],
     "timezone": "America/New_York",
-    "schedule": ["0 3 * * *"],
+    "schedule": [
+        "0 3 * * *"
+    ],
     "prHourlyLimit": 0
 }

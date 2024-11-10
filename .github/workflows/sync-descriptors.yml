@@ -1,0 +1,50 @@
+name: Sync Shared Files
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set Up GitHub CLI
+        run: |
+          curl -fsSL https://cli.github.com/packages/release/gh_2.0.0_linux_amd64.tar.gz | tar -xz
+          sudo mv gh_2.0.0_linux_amd64/bin/gh /usr/local/bin/
+        env:
+          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
+
+      - name: Sync Shared Files
+        id: sync
+        uses: varunsridharan/action-github-workflow-sync@3.4
+        with:
+          GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
+          REPOSITORIES: |
+            HalcyonOps/Ceyx-AWS-EC2
+            HalcyonOps/Ceyx-AWS-VPC
+          WORKFLOW_FILES: |
+            resources/shared/CODE_OF_CONDUCT.md
+            resources/shared/CONTRIBUTING.md
+            resources/shared/LICENSE
+            resources/shared/SECURITY.md
+          WORKFLOW_FILES_DIR: .
+          PULL_REQUEST: true
+          COMMIT_MESSAGE: "Sync shared files from source repository"
+
+      - name: Enable Auto-Merge for Ceyx-AWS-EC2
+        if: steps.sync.outputs.pull_request_url != ''
+        run: gh pr merge --auto --squash ${{ steps.sync.outputs.pull_request_url }}
+        env:
+          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
+
+      - name: Enable Auto-Merge for Ceyx-AWS-VPC
+        if: steps.sync.outputs.pull_request_url != ''
+        run: gh pr merge --auto --squash ${{ steps.sync.outputs.pull_request_url }}
+        env:
+          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
