@@ -27,6 +27,7 @@ jobs:
             resources/shared/LICENSE=../../LICENSE
             resources/shared/SECURITY.md=../../SECURITY.md
             resources/workflows/security-scan.yml=security-scan.yml
+            resources/workflows/terraform-ci.yml=terraform-ci.yml
           WORKFLOW_FILES_DIR: .
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
@@ -38,6 +39,10 @@ jobs:
             pr_url=$(gh pr list --repo "$repo" --author "R055LE" --state open --json url --jq '.[0].url')
             if [ -n "$pr_url" ]; then
               gh pr merge --auto --squash "$pr_url" --repo "$repo"
+              # Extract the branch name from the PR URL
+              branch_name=$(basename "$pr_url")
+              # Delete the branch after merging
+              gh api -X DELETE "repos/$repo/git/refs/heads/$branch_name"
             else
               echo "No open pull request found for $repo"
             fi
