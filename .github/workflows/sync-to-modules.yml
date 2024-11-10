@@ -1,4 +1,4 @@
-name: Sync Shared Files
+name: Sync Shared Files to Modules
 
 on:
   push:
@@ -9,18 +9,20 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      REPOSITORIES: |
+        HalcyonOps/Ceyx-AWS-EC2
+        HalcyonOps/Ceyx-AWS-VPC
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Sync Shared Files
         id: sync
         uses: varunsridharan/action-github-workflow-sync@3.4
         with:
           GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
-          REPOSITORIES: |
-            HalcyonOps/Ceyx-AWS-EC2
-            HalcyonOps/Ceyx-AWS-VPC
+          REPOSITORIES: ${{ env.REPOSITORIES }}
           WORKFLOW_FILES: |
             resources/shared/CODE_OF_CONDUCT.md=../../CODE_OF_CONDUCT.md
             resources/shared/CONTRIBUTING.md=../../CONTRIBUTING.md
@@ -35,7 +37,7 @@ jobs:
 
       - name: Enable Auto-Merge for PRs
         run: |
-          repos=("HalcyonOps/Ceyx-AWS-EC2" "HalcyonOps/Ceyx-AWS-VPC")
+          IFS=$'\n' read -r -d '' -a repos <<< "$REPOSITORIES"
           for repo in "${repos[@]}"; do
             pr_number=$(gh pr list --repo "$repo" --author "R055LE" --state open --json number --jq '.[0].number')
             if [ -n "$pr_number" ]; then
@@ -56,3 +58,4 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
+          REPOSITORIES: ${{ env.REPOSITORIES }}
