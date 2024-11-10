@@ -42,6 +42,7 @@ Desktop.ini
 *.sublime-*
 .settings/
 .classpath
+*Zone.Identifier
 
 # Keys and certificates
 *.pem
