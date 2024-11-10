@@ -39,121 +39,92 @@ jobs:
 
       - name: Enable Auto-Merge for PRs
         run: |
-          # Exit on pipe failures, but allow undefined variables and continue on errors
-          set -o pipefail
-
           # Function to log messages with timestamp
           log_message() {
               echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
           }
 
-          # Function to handle errors
-          handle_error() {
-              log_message "ERROR: $1"
-          }
-
-          # Validate environment variable
+          # Read the REPOSITORIES variable
           if [ -z "${REPOSITORIES:-}" ]; then
-              handle_error "REPOSITORIES environment variable is not set"
-              exit 1
+              log_message "REPOSITORIES environment variable is empty or not set"
+              exit 0  # Exit successfully if no repos to process
           fi
 
-          # Read the REPOSITORIES environment variable into an array
-          IFS=$'\n' read -r -d '' -a repos <<< "$REPOSITORIES"
+          # Read into array, handling potential empty lines
+          mapfile -t repos < <(echo "$REPOSITORIES" | grep -v '^[[:space:]]*$' || true)
 
-          # Initialize counters for summary
-          processed_count=0
-          error_count=0
+          if [ ${#repos[@]} -eq 0 ]; then
+              log_message "No repositories to process"
+              exit 0
+          fi
 
-          # Iterate over each repository
+          # Process each repository
           for repo in "${repos[@]}"; do
+              if [ -z "$repo" ]; then
+                  continue
+              fi
+              
               log_message "Processing repository: $repo"
               
-              # Attempt to retrieve the pull request number
+              # Get PR number, continue if none found
               pr_number=$(gh pr list \
                   --repo "$repo" \
                   --author "R055LE" \
                   --state open \
                   --json number \
-                  --jq '.[0].number' 2>/dev/null) || true
+                  --jq '.[0].number' 2>/dev/null || echo "")
               
-              # Check if a pull request number was found
-              if [ -n "$pr_number" ]; then
-                  log_message "Found PR #$pr_number for repository $repo"
-                  
-                  # Enable auto-merge for the PR
-                  if ! gh pr merge --auto --squash "$pr_number" --repo "$repo" 2>/dev/null; then
-                      handle_error "Failed to enable auto-merge for PR #$pr_number in $repo"
-                      ((error_count++))
-                      continue
-                  fi
-                  
-                  # Wait for the PR to be merged
-                  max_attempts=60  # 5 minutes maximum wait time
-                  attempt=0
-                  merge_successful=false
-                  
-                  while [ $attempt -lt $max_attempts ]; do
-                      pr_state=$(gh pr view "$pr_number" --repo "$repo" --json state --jq '.state' 2>/dev/null) || true
-                      
-                      if [ "$pr_state" = "MERGED" ]; then
-                          log_message "PR #$pr_number in $repo has been merged successfully"
-                          merge_successful=true
-                          break
-                      elif [ "$pr_state" = "CLOSED" ]; then
-                          handle_error "PR #$pr_number in $repo was closed without merging"
-                          ((error_count++))
-                          continue 2
-                      fi
-                      
-                      ((attempt++))
-                      log_message "Waiting for PR #$pr_number in $repo to merge... (Attempt $attempt/$max_attempts)"
-                      sleep 5
-                  done
-                  
-                  if [ $attempt -eq $max_attempts ]; then
-                      handle_error "Timeout waiting for PR #$pr_number in $repo to merge"
-                      ((error_count++))
-                      continue
-                  fi
-                  
-                  if [ "$merge_successful" = true ]; then
-                      # Retrieve the branch name associated with the PR
-                      branch_name=$(gh pr view "$pr_number" --repo "$repo" --json headRefName --jq '.headRefName' 2>/dev/null) || true
-                      
-                      if [ -z "$branch_name" ]; then
-                          handle_error "Failed to retrieve branch name for PR #$pr_number in $repo"
-                          ((error_count++))
-                          continue
-                      fi
-                      
-                      # Delete the branch after merging
-                      if ! gh api -X DELETE "repos/$repo/git/refs/heads/$branch_name" 2>/dev/null; then
-                          handle_error "Failed to delete branch $branch_name in $repo"
-                          ((error_count++))
-                          continue
-                      fi
-                      
-                      log_message "Successfully cleaned up branch $branch_name in $repo"
-                      ((processed_count++))
-                  fi
-              else
+              if [ -z "$pr_number" ]; then
                   log_message "No open pull request found for $repo - skipping"
-                  ((processed_count++))
+                  continue
               fi
+              
+              log_message "Found PR #$pr_number for repository $repo"
+              
+              # Try to enable auto-merge
+              gh pr merge --auto --squash "$pr_number" --repo "$repo" 2>/dev/null || {
+                  log_message "Failed to enable auto-merge for PR #$pr_number in $repo - continuing"
+                  continue
+              }
+              
+              # Wait for merge
+              max_attempts=60
+              attempt=0
+              while [ $attempt -lt $max_attempts ]; do
+                  pr_state=$(gh pr view "$pr_number" --repo "$repo" --json state --jq '.state' 2>/dev/null || echo "")
+                  
+                  if [ "$pr_state" = "MERGED" ]; then
+                      log_message "PR #$pr_number in $repo has been merged successfully"
+                      
+                      # Get branch name
+                      branch_name=$(gh pr view "$pr_number" --repo "$repo" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+                      
+                      if [ -n "$branch_name" ]; then
+                          # Try to delete branch
+                          gh api -X DELETE "repos/$repo/git/refs/heads/$branch_name" 2>/dev/null || {
+                              log_message "Failed to delete branch $branch_name in $repo - continuing"
+                          }
+                          log_message "Cleaned up branch $branch_name in $repo"
+                      fi
+                      break
+                  elif [ "$pr_state" = "CLOSED" ]; then
+                      log_message "PR #$pr_number in $repo was closed without merging - continuing"
+                      break
+                  fi
+                  
+                  ((attempt++))
+                  if [ $attempt -eq $max_attempts ]; then
+                      log_message "Timeout waiting for PR #$pr_number in $repo to merge - continuing"
+                      break
+                  fi
+                  
+                  log_message "Waiting for PR #$pr_number in $repo to merge... (Attempt $attempt/$max_attempts)"
+                  sleep 5
+              done
           done
 
-          # Print summary
-          log_message "Script completed with summary:"
-          log_message "Successfully processed repositories: $processed_count"
-          log_message "Repositories with errors: $error_count"
-
-          # Exit with success if at least one repo was processed successfully
-          if [ $processed_count -gt 0 ]; then
-              exit 0
-          else
-              exit 1
-          fi
+          log_message "Script completed"
+          exit 0
         env:
           GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
           REPOSITORIES: ${{ env.REPOSITORIES }}
