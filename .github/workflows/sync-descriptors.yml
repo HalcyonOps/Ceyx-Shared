@@ -26,6 +26,7 @@ jobs:
             resources/shared/CONTRIBUTING.md=../../CONTRIBUTING.md
             resources/shared/LICENSE=../../LICENSE
             resources/shared/SECURITY.md=../../SECURITY.md
+            resources/workflows/security-scan.yml=security-scan.yml
           WORKFLOW_FILES_DIR: .
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
