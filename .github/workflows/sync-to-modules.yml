@@ -40,7 +40,7 @@ jobs:
       - name: Enable Auto-Merge for PRs
         run: |
           # Read the REPOSITORIES environment variable into an array
-          IFS=$'\n' read -r -a repos <<< "$REPOSITORIES"
+          IFS=$'\n' read -r -d '' -a repos <<< "$REPOSITORIES"
 
           # Iterate over each repository
           for repo in "${repos[@]}"; do
