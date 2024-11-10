@@ -37,7 +37,7 @@ jobs:
 
       - name: Enable Auto-Merge for PRs
         run: |
-          IFS=$'\n' read -r -d '' -a repos <<< "$REPOSITORIES"
+          IFS=$'\n' read -r -a repos <<< "$REPOSITORIES"
           for repo in "${repos[@]}"; do
             pr_number=$(gh pr list --repo "$repo" --author "R055LE" --state open --json number --jq '.[0].number')
             if [ -n "$pr_number" ]; then
