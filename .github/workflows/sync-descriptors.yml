@@ -30,6 +30,10 @@ jobs:
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
 
+      - name: Debug Sync Outputs
+        run: |
+          echo "Pull Request URL: ${{ steps.sync.outputs.pull_request_url }}"
+        
       - name: Enable Auto-Merge for Pull Requests
         if: steps.sync.outputs.pull_request_urls != ''
         run: |
