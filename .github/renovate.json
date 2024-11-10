@@ -22,8 +22,7 @@
         }
     ],
     "schedule": [
-        "every sunday",
-        "0 3 * * *"
+        "* 3 * * *"
     ],
     "postUpgradeTasks": {
         "commands": [
