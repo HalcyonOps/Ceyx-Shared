@@ -13,13 +13,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4.2.2
 
-      - name: Set Up GitHub CLI
-        run: |
-          curl -fsSL https://cli.github.com/packages/release/gh_2.0.0_linux_amd64.tar.gz | tar -xz
-          sudo mv gh_2.0.0_linux_amd64/bin/gh /usr/local/bin/
-        env:
-          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
-
       - name: Sync Shared Files
         id: sync
         uses: varunsridharan/action-github-workflow-sync@3.4
