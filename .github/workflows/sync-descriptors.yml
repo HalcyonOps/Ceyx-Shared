@@ -34,7 +34,7 @@ jobs:
         run: |
           repos=("HalcyonOps/Ceyx-AWS-EC2" "HalcyonOps/Ceyx-AWS-VPC")
           for repo in "${repos[@]}"; do
-            pr_url=$(gh pr list --repo "$repo" --author "Workflow Sync Bot" --state open --json url --jq '.[0].url')
+            pr_url=$(gh pr list --repo "$repo" --author "R055LE" --state open --json url --jq '.[0].url')
             if [ -n "$pr_url" ]; then
               gh pr merge --auto --squash "$pr_url" --repo "$repo"
             else
