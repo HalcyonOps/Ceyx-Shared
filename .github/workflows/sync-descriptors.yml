@@ -31,15 +31,17 @@ jobs:
           COMMIT_MESSAGE: "Sync shared files from source repository"
 
       - name: Enable Auto-Merge for Pull Requests
-        env:
-          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
+        if: steps.sync.outputs.pull_request_urls != ''
         run: |
           repos=("HalcyonOps/Ceyx-AWS-EC2" "HalcyonOps/Ceyx-AWS-VPC")
-          for repo in "${repos[@]}"; do
-            pr_url=$(gh pr list --repo "$repo" --author "github-actions[bot]" --state open --json url --jq '.[0].url')
+          IFS=',' read -r -a pr_urls <<< "${{ steps.sync.outputs.pull_request_urls }}"
+          for i in "${!repos[@]}"; do
+            pr_url="${pr_urls[$i]}"
             if [ -n "$pr_url" ]; then
-              gh pr merge --auto --squash "$pr_url" --repo "$repo"
+              gh pr merge --auto --squash "$pr_url" --repo "${repos[$i]}"
             else
-              echo "No open pull request found for $repo"
+              echo "No open pull request found for ${repos[$i]}"
             fi
           done
+        env:
+          GH_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
