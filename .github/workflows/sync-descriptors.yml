@@ -28,6 +28,7 @@ jobs:
             resources/shared/SECURITY.md=../../SECURITY.md
             resources/workflows/security-scan.yml=security-scan.yml
             resources/workflows/terraform-ci.yml=terraform-ci.yml
+            resources/workflows/terraform-tests.yml=terraform-tests.yml
           WORKFLOW_FILES_DIR: .
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
