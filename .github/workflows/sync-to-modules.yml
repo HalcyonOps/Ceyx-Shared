@@ -38,23 +38,49 @@ jobs:
 
       - name: Enable Auto-Merge for PRs
         run: |
-          set +e  # Disable immediate exit on error
-
+          # Read the REPOSITORIES environment variable into an array
           IFS=$'\n' read -r -a repos <<< "$REPOSITORIES"
+
+          # Iterate over each repository
           for repo in "${repos[@]}"; do
-            pr_number=$(gh pr list --repo "$repo" --author "R055LE" --state open --json number --jq '.[0].number')
+            # Attempt to retrieve the pull request number
+            pr_number=$(gh pr list --repo "$repo" --author "R055LE" --state open --json number --jq '.[0].number' 2>/dev/null)
+            
+            # Check if a pull request number was found
             if [ -n "$pr_number" ]; then
+              echo "Processing PR #$pr_number for repository $repo"
+              
               # Enable auto-merge for the PR
-              gh pr merge --auto --squash "$pr_number" --repo "$repo"
+              if ! gh pr merge --auto --squash "$pr_number" --repo "$repo"; then
+                echo "Failed to enable auto-merge for PR #$pr_number in $repo"
+                continue
+              fi
+              
               # Wait for the PR to be merged
-              while [ "$(gh pr view "$pr_number" --repo "$repo" --json state --jq '.state')" != "MERGED" ]; do
-                echo "Waiting for PR #$pr_number to merge..."
-                sleep 5
+              while true; do
+                pr_state=$(gh pr view "$pr_number" --repo "$repo" --json state --jq '.state' 2>/dev/null)
+                if [ "$pr_state" == "MERGED" ]; then
+                  echo "PR #$pr_number in $repo has been merged."
+                  break
+                else
+                  echo "Waiting for PR #$pr_number in $repo to merge..."
+                  sleep 5
+                fi
               done
+              
               # Retrieve the branch name associated with the PR
-              branch_name=$(gh pr view "$pr_number" --repo "$repo" --json headRefName --jq '.headRefName')
+              branch_name=$(gh pr view "$pr_number" --repo "$repo" --json headRefName --jq '.headRefName' 2>/dev/null)
+              if [ -z "$branch_name" ]; then
+                echo "Failed to retrieve branch name for PR #$pr_number in $repo"
+                continue
+              fi
+              
               # Delete the branch after merging
-              gh api -X DELETE "repos/$repo/git/refs/heads/$branch_name"
+              if ! gh api -X DELETE "repos/$repo/git/refs/heads/$branch_name"; then
+                echo "Failed to delete branch $branch_name in $repo"
+                continue
+              fi
+              
             else
               echo "No open pull request found for $repo"
             fi
