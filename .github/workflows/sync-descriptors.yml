@@ -22,10 +22,10 @@ jobs:
             HalcyonOps/Ceyx-AWS-EC2
             HalcyonOps/Ceyx-AWS-VPC
           WORKFLOW_FILES: |
-            resources/shared/CODE_OF_CONDUCT.md
-            resources/shared/CONTRIBUTING.md
-            resources/shared/LICENSE
-            resources/shared/SECURITY.md
+            resources/shared/CODE_OF_CONDUCT.md=CODE_OF_CONDUCT.md
+            resources/shared/CONTRIBUTING.md=CONTRIBUTING.md
+            resources/shared/LICENSE=LICENSE
+            resources/shared/SECURITY.md=SECURITY.md
           WORKFLOW_FILES_DIR: .
           PULL_REQUEST: true
           COMMIT_MESSAGE: "Sync shared files from source repository"
