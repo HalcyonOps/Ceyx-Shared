@@ -28,6 +28,7 @@ jobs:
           WORKFLOW_FILES: |
             resources/docs/ENVIRONMENT.md=../../docs/ENVIRONMENT.md
             resources/docs/FAQ.md=../../docs/FAQ.md
+            resources/docs/MARKDOWN.md=../../docs/MARKDOWN.md
             resources/docs/STANDARDS.md=../../docs/STANDARDS.md
             resources/modules/.checkov.yml=../../.checkov.yml
             resources/modules/.gitignore=../../.gitignore
