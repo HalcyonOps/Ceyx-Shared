@@ -1,189 +1,209 @@
-# Environment Setup Guide
+# Development Environment Setup Guide
 
-Setting up your development environment correctly is crucial for contributing effectively to **Ceyx AWS Infrastructure as Code**. This guide provides step-by-step instructions to help you get started.
+This guide will help you set up your development environment for working with our infrastructure as code projects.
 
-## Table of Contents
+## Prerequisites
 
-1. [Prerequisites](#1-prerequisites)
-2. [Clone the Repository](#2-clone-the-repository)
-3. [Install Dependencies](#3-install-dependencies)
-4. [Configure Pre-commit Hooks](#4-configure-pre-commit-hooks)
-5. [Set Up Environment Variables](#5-set-up-environment-variables)
-6. [Virtual Environment Setup](#6-virtual-environment-setup)
-7. [Troubleshooting](#7-troubleshooting)
-8. [Additional Resources](#8-additional-resources)
+### Required Software
 
----
+1. **Git**
 
-## **1. Prerequisites**
-
-Ensure you have the following tools installed on your machine:
-
-- **Git:** Version control system.
-  - [Download Git](https://git-scm.com/downloads)
-- **Terraform:** Infrastructure as Code tool.
-  - [Download Terraform](https://www.terraform.io/downloads) (version 1.5.x or higher)
-- **Go:** Programming language.
-  - [Download Go](https://golang.org/dl/) (version 1.22.x or higher)
-- **Python:** Programming language.
-  - [Download Python](https://www.python.org/downloads/) (version 3.x)
-- **pip:** Python package installer.
-  - [Install pip](https://pip.pypa.io/en/stable/installation/)
-- **Pre-commit:** Framework for managing and maintaining multi-language pre-commit hooks.
-  - Install via pip:
-    ```bash
-    pip install pre-commit
-    ```
-- **terraform-docs:** Tool to generate documentation from Terraform modules.
-  - [Install terraform-docs](https://terraform-docs.io/user-guide/installation/)
-- **Checkov:** Static analysis tool for Infrastructure as Code.
-  - [Install Checkov](https://www.checkov.io/installation/)
-- **Trivy:** Vulnerability scanner for containers and other artifacts.
-  - [Install Trivy](https://aquasecurity.github.io/trivy/latest/installation/)
-
-## **2. Clone the Repository**
-
-Clone the **Ceyx AWS Infrastructure as Code** repository to your local machine:
-
-```bash
-git clone https://github.com/HalcyonWorks/Ceyx-AWS.git
-```
-
-Navigate to the project directory:
-
-```bash
-cd Ceyx-AWS
-```
-
-## **3. Install Dependencies**
-
-Ensure all necessary dependencies are installed:
-
-- **Go Dependencies:**
-  ```bash
-  go mod download
-  ```
-- **Python Dependencies:**
-  If there is a `requirements.txt` file, install the dependencies:
-  ```bash
-  pip install -r requirements.txt
-  ```
-
-## **4. Configure Pre-commit Hooks**
-
-Pre-commit hooks help maintain code quality by running checks before every commit.
-
-1. **Install Pre-commit Hooks:**
    ```bash
-   pre-commit install
-   ```
-2. **Run All Pre-commit Hooks Manually (Optional):**
-   ```bash
-   pre-commit run --all-files
+   git --version  # Should be 2.34.0 or higher
    ```
 
-## **5. Set Up Environment Variables**
-
-Configure the necessary environment variables required for the project. Refer to the `.env.example` file for required variables.
-
-1. **Create a `.env` File:**
-   ```bash
-   cp .env.example .env
-   ```
-2. **Edit the `.env` File:**
-   Open the `.env` file in your favorite text editor and populate it with the necessary values.
+2. **Python & pip**
 
    ```bash
-   nano .env
+   python --version  # Should be 3.x
+   pip --version    # Should be 21.x or higher
    ```
 
-## **6. Virtual Environment Setup**
+3. **AWS CLI**
 
-It's recommended to use a virtual environment to manage Python dependencies.
+   ```bash
+   # Install AWS CLI v2
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+   unzip awscliv2.zip
+   sudo ./aws/install
+   
+   # Verify installation
+   aws --version  # Should be 2.x or higher
+   ```
 
-1. **Create a Virtual Environment:**
+4. **Terraform**
+
    ```bash
-   python -m venv .venv
+   # Install Terraform
+   wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+   echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+   sudo apt update && sudo apt install terraform
+   
+   # Verify installation
+   terraform --version  # Should be 1.5.x or higher
    ```
-2. **Activate the Virtual Environment:**
-   - **On macOS/Linux:**
-     ```bash
-     source .venv/bin/activate
-     ```
-   - **On Windows:**
-     ```bash
-     .venv\Scripts\activate
-     ```
-3. **Upgrade `pip`:**
+
+5. **terraform-docs**
+
    ```bash
-   pip install --upgrade pip
+   # Install terraform-docs
+   curl -Lo ./terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/latest/download/terraform-docs-v0.16.0-$(uname)-amd64.tar.gz
+   tar -xzf terraform-docs.tar.gz
+   chmod +x terraform-docs
+   sudo mv terraform-docs /usr/local/bin/
+   
+   # Verify installation
+   terraform-docs --version
    ```
-4. **Install Python Dependencies:**
+
+6. **Trivy**
+
    ```bash
+   # Install Trivy
+   sudo apt-get install wget apt-transport-https gnupg lsb-release
+   wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+   echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+   sudo apt-get update
+   sudo apt-get install trivy
+   
+   # Verify installation
+   trivy --version
+   ```
+
+## Initial Setup
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone <repository-url>
+   cd <repository-name>
+   ```
+
+2. **Set Up Python Environment**
+
+   ```bash
+   # Create and activate virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   
+   # Install required packages
    pip install -r requirements.txt
    ```
 
-## **7. Troubleshooting**
+3. **Configure Pre-commit Hooks**
 
-### **Pre-commit Hook Issues**
-
-If pre-commit hooks fail:
-
-1. **Run All Hooks Manually:**
    ```bash
+   # Install pre-commit
+   pip install pre-commit
+   
+   # Install the git hook scripts
+   pre-commit install
+   
+   # (Optional) Run against all files
    pre-commit run --all-files
    ```
-2. **Address Reported Issues:**
-   Follow the error messages to fix formatting or validation issues.
-3. **Stage the Changes:**
+
+4. **Configure AWS Credentials**
+
    ```bash
-   git add .
+   aws configure
+   # Enter your AWS Access Key ID
+   # Enter your AWS Secret Access Key
+   # Enter default region (e.g., us-west-2)
+   # Enter output format (json)
    ```
-4. **Commit Again:**
+
+5. **Initialize Terraform**
+
    ```bash
-   git commit -m "Fix pre-commit hook issues"
+   terraform init
    ```
 
-### **Version Issues**
+## Verification Steps
 
-- **Terraform Version:**
-  Ensure you are using Terraform version 1.5.x or higher.
-  ```bash
-  terraform version
-  ```
+Run these commands to verify your setup:
 
-- **Go Version:**
-  Ensure you are using Go version 1.22.x or higher.
-  ```bash
-  go version
-  ```
+```bash
+# Verify pre-commit hooks
+pre-commit run --all-files
 
-- **terraform-docs:**
-  Ensure `terraform-docs` is installed and in your PATH.
-  ```bash
-  which terraform-docs
-  ```
+# Verify Terraform formatting
+terraform fmt -check
 
-- **Checkov:**
-  Verify Checkov installation.
-  ```bash
-  checkov --version
-  ```
+# Verify Terraform configuration
+terraform validate
 
-- **Trivy:**
-  Verify Trivy installation.
-  ```bash
-  trivy --version
-  ```
+# Run Checkov security checks
+checkov --directory .
 
-## **8. Additional Resources**
+# Verify AWS connectivity
+aws sts get-caller-identity
+```
 
+## IDE Configuration
+
+### VS Code (Recommended)
+
+1. **Required Extensions:**
+   - HashiCorp Terraform
+   - AWS Toolkit
+   - Python
+   - YAML
+   - markdownlint
+   - GitLens
+
+2. **Recommended Settings:**
+
+   ```json
+   {
+     "[terraform]": {
+       "editor.formatOnSave": true,
+       "editor.defaultFormatter": "hashicorp.terraform"
+     },
+     "[markdown]": {
+       "editor.formatOnSave": true,
+       "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+     },
+     "[python]": {
+       "editor.formatOnSave": true,
+       "editor.defaultFormatter": "ms-python.python"
+     }
+   }
+   ```
+
+## Common Issues & Troubleshooting
+
+1. **Pre-commit Hook Failures**
+
+   ```bash
+   pre-commit clean
+   pre-commit install --clean
+   ```
+
+2. **Terraform Init Failures**
+
+   ```bash
+   rm -rf .terraform
+   terraform init -upgrade
+   ```
+
+3. **AWS Credential Issues**
+   - Verify credentials are correctly set in `~/.aws/credentials`
+   - Check AWS CLI configuration with `aws configure list`
+   - Test authentication with `aws sts get-caller-identity`
+
+## Additional Resources
+
+- [Project Standards](STANDARDS.md)
+- [Contributing Guidelines](../CONTRIBUTING.md)
+- [AWS CLI Documentation](https://aws.amazon.com/cli/)
 - [Terraform Documentation](https://www.terraform.io/docs)
 - [Pre-commit Documentation](https://pre-commit.com/)
-- [Checkov Documentation](https://www.checkov.io/)
 
----
+## Support
 
-By following this guide, you will have a fully configured development environment ready to contribute to the **Ceyx AWS Infrastructure as Code** project. If you encounter any issues not covered in this guide, feel free to reach out through our [issue tracker](https://github.com/HalcyonWorks/Ceyx-AWS/issues) or join our [community discussions](https://github.com/HalcyonWorks/Ceyx-AWS/discussions).
+If you encounter any issues not covered in this guide:
 
----
+1. Check our issue tracker
+2. Review the troubleshooting section
+3. Contact the infrastructure team

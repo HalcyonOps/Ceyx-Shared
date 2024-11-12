@@ -138,6 +138,7 @@ Enhance the project standards to incorporate advanced best practices for automat
 - **Design for Scalability:** Structure modules to handle scaling requirements, such as auto-scaling groups and load balancers.
 
 *References:*
+
 - [Terraform Automation Best Practices](https://www.terraform.io/language/modules/develop/best-practices#automation)
 - [Terraform Performance Best Practices](https://www.terraform.io/language/resources/best-practices)
 - [Terraform Scalability Best Practices](https://www.terraform.io/language/resources/best-practices#scalability)
@@ -190,6 +191,7 @@ Ensure the integrity and reliability of your infrastructure configurations throu
   - **Trivy:** Scan container images for vulnerabilities.
 
 *References:*
+
 - [Terraform Testing Best Practices](https://learn.hashicorp.com/tutorials/terraform/testing)
 - [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
 - [Open Policy Agent Documentation](https://www.openpolicyagent.org/docs/latest/)
@@ -236,6 +238,7 @@ Maintain robust security practices to safeguard infrastructure and data.
 To ensure alignment with industry-leading standards and best practices, the following official documentation from AWS and HashiCorp has been referenced throughout this document:
 
 ### **HashiCorp Terraform Documentation**
+
 - [Terraform Module Best Practices](https://www.terraform.io/language/modules/develop/best-practices)
 - [Terraform Variable Validation](https://www.terraform.io/language/values/variables#validation-blocks)
 - [Terraform Automation Best Practices](https://www.terraform.io/language/modules/develop/best-practices#automation)
@@ -243,23 +246,13 @@ To ensure alignment with industry-leading standards and best practices, the foll
 - [Terraform Scalability Best Practices](https://www.terraform.io/language/resources/best-practices#scalability)
 
 ### **AWS Documentation**
+
 - [AWS Well-Architected Framework – Security Pillar](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html)
 - [AWS Security Best Practices](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-standards-cis.html)
 - [Terraform Module Documentation](https://www.terraform.io/language/modules/develop)
-
-### **Additional Tools and References**
-- [Pre-commit Hooks Documentation](https://pre-commit.com/)
-- [Terraform-docs Documentation Generation](https://terraform-docs.io/)
-- [Checkov](https://www.checkov.io/)
-- [Terratest Documentation](https://terratest.gruntwork.io/)
-- [Trivy](https://aquasecurity.github.io/trivy/)
-- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
-- [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
 **Note:** If there are specific sections or areas within the **docs/STANDARDS.md** that require further enhancement or if you need assistance with other documentation files, please let me know!
 
 ---
-
-**End of Standards**
