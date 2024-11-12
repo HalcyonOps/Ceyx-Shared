@@ -21,6 +21,9 @@ repos:
         args:
         - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
     -   id: terraform_trivy
+        args:
+        - --args=--skip-dirs="**/venv"
+        - --args=--skip-dirs="**/.terraform"
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

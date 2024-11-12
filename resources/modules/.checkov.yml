@@ -1,5 +1,8 @@
-# skip_checks: []
+# Configuration for Checkov security scanning
 framework: [terraform]
 output: cli
 quiet: false
+
+# Uncomment and customize these as needed:
+# skip_checks: []
 # ignore: []

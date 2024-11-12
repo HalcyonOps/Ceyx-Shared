@@ -26,6 +26,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.CEYX_SHARED_TOKEN }}
           REPOSITORIES: ${{ env.REPOSITORIES }}
           WORKFLOW_FILES: |
+            resources/docs/ENVIRONMENT.md=../docs/ENVIRONMENT.md
+            resources/docs/FAQ.md=../docs/FAQ.md
+            resources/docs/STANDARDS.md=../docs/STANDARDS.md
             resources/modules/.checkov.yml=../../.checkov.yml
             resources/modules/.gitignore=../../.gitignore
             resources/modules/.pre-commit-config.yaml=../../.pre-commit-config.yaml

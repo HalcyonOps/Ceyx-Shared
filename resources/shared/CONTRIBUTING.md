@@ -44,10 +44,13 @@ We welcome suggestions for improvements and new features. To propose an enhancem
 
 1. **Fork the Repository:** Click the "Fork" button at the top-right corner of the repository page to create your own fork.
 2. **Clone Your Fork:**
+
    ```bash
    git clone https://github.com/your-username/Ceyx-AWS.git
    ```
+
 3. **Create a New Branch:**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -62,13 +65,17 @@ We welcome suggestions for improvements and new features. To propose an enhancem
 ### Submitting Pull Requests
 
 1. **Commit Your Changes:**
+
    ```bash
    git commit -m "feat: add new feature X"
    ```
+
 2. **Push to Your Fork:**
+
    ```bash
    git push origin feature/your-feature-name
    ```
+
 3. **Open a Pull Request:** Navigate to the original repository and click "Compare & pull request". Provide a clear description of your changes and reference any related issues.
 
 **Before submitting a PR:**
@@ -77,6 +84,7 @@ We welcome suggestions for improvements and new features. To propose an enhancem
 - Run `terraform validate` to ensure your configurations are syntax-error free.
 - Execute `terraform-docs` to update module documentation if applicable.
 - Ensure all pre-commit hooks pass by running:
+
   ```bash
   pre-commit run --all-files
   ```
@@ -90,9 +98,11 @@ This project adheres to the [Code of Conduct](CODE_OF_CONDUCT.md). By contributi
 To set up your development environment, follow these steps:
 
 1. **Clone the Repository:**
+
    ```bash
    git clone https://github.com/HalcyonWorks/Ceyx-AWS.git
    ```
+
 2. **Install Prerequisites:**
    Ensure you have the following tools installed:
    - [Terraform](https://www.terraform.io/downloads) (version 1.5.x or higher)
@@ -104,9 +114,11 @@ To set up your development environment, follow these steps:
    - [Checkov](https://www.checkov.io/)
    - [Trivy](https://aquasecurity.github.io/trivy/)
 3. **Configure Pre-commit Hooks:**
+
    ```bash
    pre-commit install
    ```
+
 4. **Set Up Environment Variables:**
    Follow the [Environment Setup Guide](ENVIRONMENT.md) to configure necessary environment variables and tools.
 
@@ -135,14 +147,17 @@ For more detailed guidelines, refer to the [Style Guide](STANDARDS.md#2.2.3 Docu
 Ensure all contributions are thoroughly tested before submission.
 
 1. **Static Code Analysis:**
+
    ```bash
    terraform fmt
    terraform validate
    tflint
    ```
+
 2. **Automated Testing:**
    - Utilize Terratest for comprehensive testing.
 3. **Run Pre-commit Hooks:**
+
    ```bash
    pre-commit run --all-files
    ```
@@ -155,9 +170,11 @@ Maintain and improve documentation to ensure clarity and comprehensiveness.
 
 - **Module Documentation:** Each Terraform module contains a `README.md` with usage instructions and examples.
 - **Automated Documentation Generation:**
+
   ```bash
   terraform-docs markdown table . > README.md
   ```
+
 - **Environment Setup Guide:** Ensure the [Environment Setup Guide](ENVIRONMENT.md) is up-to-date.
 
 Follow the [Documentation Standards](STANDARDS.md#2.2.3 Documentation) to ensure consistency and quality.
