@@ -14,7 +14,8 @@ Ensuring consistency, security, and maintainability across our infrastructure is
    - [2.3. Best Practices Enhancements](#23-best-practices-enhancements)
 3. [Coding Standards](#3-coding-standards)
    - [3.1. Formatting](#31-formatting)
-   - [3.2. Naming Conventions](#32-naming-conventions)
+   - [3.2. Variable Organization](#32-variable-organization)
+   - [3.3. Naming Conventions](#33-naming-conventions)
    - [3.3. Security Best Practices](#33-security-best-practices)
 4. [Testing and Validation](#4-testing-and-validation)
 5. [Security](#5-security)
@@ -153,7 +154,28 @@ Maintain consistency, security, and quality across the project by adhering to th
 - **Indentation:** Use two spaces for indentation.
 - **Line Length:** Limit lines to 120 characters for readability.
 
-### **3.2. Naming Conventions**
+### **3.2. Variable Organization**
+
+Variables should be organized into logical sections using clear comment headers:
+
+```hcl
+#------------------------------------------------------------------------------
+Section Name (e.g., General Configuration, VPC Configuration, etc.)
+#------------------------------------------------------------------------------
+```
+
+- Group related variables together under appropriate section headers
+- Use consistent header formatting with 78-character width comment lines
+- Order sections from most general to most specific
+- Common sections include:
+  - General Configuration
+  - VPC Configuration
+  - Subnet Configuration
+  - Feature Flags
+  - Resource Naming
+  - Tags Configuration
+
+### **3.3. Naming Conventions**
 
 - **Variables:** Use `snake_case` for variable names.
   - *Example:* `instance_type`
